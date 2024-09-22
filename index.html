@@ -3,27 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG変換ツール</title>
+    <title>SVG変換ツール (SVG Transformer)</title>
     <style>
         .container {
             padding: 20px;
-            max-width: 500px;
+            max-width: 400px;
             margin: auto;
             background-color: white;
             border-radius: 15px;
             box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-            text-align: center;
         }
-        .slider-container {
-            display: flex;
-            justify-content: space-between;
-            margin: 10px 0;
+        .slider {
+            width: 100%;
         }
         .preview {
-            width: 200px;
-            height: 200px;
-            border: 1px solid #ccc;
+            width: 250px;
+            height: 250px;
             margin: 20px auto;
+            border: 1px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .button {
             background-color: #3498db;
@@ -32,8 +32,6 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            display: block;
-            margin: 20px auto;
         }
         .button:hover {
             background-color: #2980b9;
@@ -43,56 +41,42 @@
 <body>
 
     <div class="container">
-        <h1>SVG変換ツール</h1>
+        <h1 class="text-center">SVG変換ツール (SVG Transformer)</h1>
+        
+        <input type="file" id="fileInput" accept=".svg" class="slider"/>
 
-        <!-- SVG表示領域 -->
         <div class="preview" id="svgPreview">
-            <!-- 読み込んだSVGがここに表示される -->
+            <!-- Transformed SVG will be displayed here -->
         </div>
 
-        <!-- ファイル選択 -->
-        <input type="file" id="fileInput" accept=".svg">
-
-        <!-- 複雑性スライダー -->
-        <div class="slider-container">
-            <label>複雑性 (小)</label>
-            <input type="range" id="complexitySlider" min="1" max="5" step="0.1" value="1">
-            <label>大</label>
+        <div>
+            <label>複雑性 (Complexity)</label>
+            <input type="range" id="complexitySlider" min="1" max="5" step="0.1" class="slider" value="1">
+        </div>
+        <div>
+            <label>直線性 (Linearity)</label>
+            <input type="range" id="linearitySlider" min="0" max="1" step="0.01" class="slider" value="0">
+        </div>
+        <div>
+            <label>振幅 (Elongation)</label>
+            <input type="range" id="elongationSlider" min="0.5" max="2" step="0.1" class="slider" value="1">
+        </div>
+        <div>
+            <label>対称性 (Symmetry)</label>
+            <input type="range" id="symmetrySlider" min="-1" max="1" step="0.1" class="slider" value="0">
+        </div>
+        <div>
+            <label>方向性 (Orientation)</label>
+            <input type="range" id="orientationSlider" min="0" max="360" step="1" class="slider" value="0">
         </div>
 
-        <!-- 直線性スライダー -->
-        <div class="slider-container">
-            <label>丸</label>
-            <input type="range" id="linearitySlider" min="0" max="1" step="0.01" value="0">
-            <label>直</label>
+        <div class="text-center">
+            <button id="saveButton" class="button">画像として保存 (Save as SVG)</button>
         </div>
-
-        <!-- 振幅スライダー -->
-        <div class="slider-container">
-            <label>細</label>
-            <input type="range" id="elongationSlider" min="0.5" max="2" step="0.1" value="1">
-            <label>太</label>
-        </div>
-
-        <!-- 対称性スライダー -->
-        <div class="slider-container">
-            <label>低</label>
-            <input type="range" id="symmetrySlider" min="-1" max="1" step="0.1" value="0">
-            <label>高</label>
-        </div>
-
-        <!-- 向きスライダー -->
-        <div class="slider-container">
-            <label>方向</label>
-            <input type="range" id="orientationSlider" min="0" max="360" step="1" value="0">
-        </div>
-
-        <!-- SVG保存ボタン -->
-        <button class="button" id="saveButton">画像として保存</button>
     </div>
 
     <script>
-        let svgElement = null;
+        let svgContent = '';
         const fileInput = document.getElementById('fileInput');
         const svgPreview = document.getElementById('svgPreview');
         const complexitySlider = document.getElementById('complexitySlider');
@@ -102,88 +86,61 @@
         const orientationSlider = document.getElementById('orientationSlider');
         const saveButton = document.getElementById('saveButton');
 
-        // ファイルアップロードイベント
         fileInput.addEventListener('change', handleFileUpload);
 
-        // スライダーの値変更イベント
-        complexitySlider.addEventListener('input', applyTransformations);
-        linearitySlider.addEventListener('input', applyTransformations);
-        elongationSlider.addEventListener('input', applyTransformations);
-        symmetrySlider.addEventListener('input', applyTransformations);
-        orientationSlider.addEventListener('input', applyTransformations);
-
-        // SVGファイルの読み込み処理
         function handleFileUpload(event) {
             const file = event.target.files[0];
             if (file) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    const parser = new DOMParser();
-                    const svgDoc = parser.parseFromString(e.target.result, 'image/svg+xml');
-                    svgElement = svgDoc.documentElement;
-                    displaySVG();
+                    svgContent = e.target.result;
+                    displaySVG(svgContent);
                 };
                 reader.readAsText(file);
             }
         }
 
-        // SVGをプレビューに表示
-        function displaySVG() {
-            svgPreview.innerHTML = '';
-            svgPreview.appendChild(svgElement);
-            applyTransformations(); // 初期状態で変形を適用
+        function displaySVG(content) {
+            svgPreview.innerHTML = content;
         }
 
-        // 変形を適用する処理
         function applyTransformations() {
-            if (!svgElement) return;
+            if (!svgContent) return svgContent;
 
+            const parser = new DOMParser();
+            const svg = parser.parseFromString(svgContent, 'image/svg+xml').documentElement;
+
+            // Apply complexity
             const complexity = complexitySlider.value;
-            const linearity = linearitySlider.value;
-            const elongation = elongationSlider.value;
-            const symmetry = symmetrySlider.value;
-            const orientation = orientationSlider.value;
-
-            // 複雑性 (頂点の数)
-            const paths = svgElement.querySelectorAll('path');
+            const paths = svg.querySelectorAll('path');
             paths.forEach(path => {
-                let d = path.getAttribute('d');
-                const commands = d.match(/([MLHVCSQTAZmlhvcsqtaz])/g);
-                if (commands) {
-                    commands.forEach(command => {
-                        d = d.replace(new RegExp(command, 'g'), command + ' '.repeat(complexity - 1));
-                    });
-                    path.setAttribute('d', d);
-                }
+                const d = path.getAttribute('d');
+                const newD = d.replace(/([MLHVCSQTAZmlhvcsqtaz])/g, `$1 `.repeat(complexity));
+                path.setAttribute('d', newD);
             });
 
-            // 直線性 (丸さ)
-            const circles = svgElement.querySelectorAll('circle, ellipse');
-            circles.forEach(circle => {
-                const rx = parseFloat(circle.getAttribute('rx') || circle.getAttribute('r') || 0);
-                const ry = parseFloat(circle.getAttribute('ry') || circle.getAttribute('r') || 0);
-                const newRx = rx * (1 - linearity);
-                const newRy = ry * (1 - linearity);
-                circle.setAttribute('rx', newRx);
-                circle.setAttribute('ry', newRy);
-            });
+            // Apply linearity (roundness)
+            const linearity = linearitySlider.value;
+            svg.style.borderRadius = `${linearity * 50}%`;
 
-            // 振幅 (縦横比)
-            svgElement.style.transform = `scaleX(${elongation})`;
+            // Apply elongation (aspect ratio)
+            const elongation = elongationSlider.value;
+            svg.style.transform += ` scaleX(${elongation})`;
 
-            // 対称性 (左右の違い)
-            svgElement.style.transform += ` skewX(${symmetry * 45}deg)`;
+            // Apply symmetry (left-right difference)
+            const symmetry = symmetrySlider.value;
+            svg.style.transform += ` skewX(${symmetry * 45}deg)`;
 
-            // 向き (回転)
-            svgElement.style.transform += ` rotate(${orientation}deg)`;
+            // Apply orientation (rotation)
+            const orientation = orientationSlider.value;
+            svg.style.transform += ` rotate(${orientation}deg)`;
+
+            return new XMLSerializer().serializeToString(svg);
         }
 
-        // SVGを保存する処理
         saveButton.addEventListener('click', () => {
-            if (!svgElement) return;
-            const serializer = new XMLSerializer();
-            const svgString = serializer.serializeToString(svgElement);
-            const blob = new Blob([svgString], { type: 'image/svg+xml' });
+            const transformedSvg = applyTransformations();
+            const blob = new Blob([transformedSvg], { type: 'image/svg+xml' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -193,6 +150,7 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         });
+
     </script>
 </body>
 </html>
