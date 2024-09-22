@@ -29,6 +29,10 @@
       width: 100%;
       margin: 10px 0;
     }
+    .vertex-count {
+      font-size: 14px;
+      color: #666;
+    }
   </style>
 </head>
 <body>
@@ -38,7 +42,7 @@
 
   <!-- SVGファイルのアップロード -->
   <input type="file" id="fileInput" accept=".svg" />
-  
+
   <!-- SVGのプレビュー表示エリア -->
   <div id="svgPreview" class="svg-preview">
     <p>SVGをアップロードしてください</p>
@@ -46,18 +50,18 @@
 
   <!-- スライダーのコントロールエリア -->
   <div class="controls">
-    <label for="complexity">複雑性 (Complexity): <span id="complexityValue">1</span></label>
-    <input type="range" id="complexity" class="slider" min="1" max="5" step="0.1" value="1">
-    
+    <label for="complexity">頂点数 (Vertex Count): <span id="vertexCount">0</span></label>
+    <input type="range" id="complexity" class="slider" min="1" max="10" step="1" value="1">
+
     <label for="linearity">直線性 (Linearity): <span id="linearityValue">0</span></label>
     <input type="range" id="linearity" class="slider" min="0" max="1" step="0.01" value="0">
-    
+
     <label for="elongation">振幅 (Elongation): <span id="elongationValue">1</span></label>
     <input type="range" id="elongation" class="slider" min="0.5" max="2" step="0.1" value="1">
-    
+
     <label for="symmetry">対称性 (Symmetry): <span id="symmetryValue">0</span></label>
     <input type="range" id="symmetry" class="slider" min="-1" max="1" step="0.1" value="0">
-    
+
     <label for="orientation">方向性 (Orientation): <span id="orientationValue">0</span>°</label>
     <input type="range" id="orientation" class="slider" min="0" max="360" step="1" value="0">
   </div>
@@ -70,11 +74,10 @@
   let svgContent = ''; // SVGの内容を保存する変数
   const svgPreview = document.getElementById('svgPreview');
   const fileInput = document.getElementById('fileInput');
-  const saveButton = document.getElementById('saveButton');
+  const vertexCountLabel = document.getElementById('vertexCount');
 
-  // スライダーと対応する値の表示を更新する関数
+  // スライダーの値を表示するラベルを更新
   function updateSliderValues() {
-    document.getElementById('complexityValue').textContent = document.getElementById('complexity').value;
     document.getElementById('linearityValue').textContent = document.getElementById('linearity').value;
     document.getElementById('elongationValue').textContent = document.getElementById('elongation').value;
     document.getElementById('symmetryValue').textContent = document.getElementById('symmetry').value;
@@ -88,8 +91,20 @@
       const reader = new FileReader();
       reader.onload = function(e) {
         svgContent = e.target.result;
-        svgPreview.innerHTML = svgContent; // SVGの内容を表示
-        applyTransformations(); // 変形を適用
+        const parser = new DOMParser();
+        const svgDocument = parser.parseFromString(svgContent, 'image/svg+xml');
+        svgPreview.innerHTML = ''; // プレビューをクリア
+        svgPreview.appendChild(svgDocument.documentElement); // SVGを表示
+
+        // 頂点数の計算
+        const paths = svgDocument.querySelectorAll('path');
+        let totalVertices = 0;
+        paths.forEach(path => {
+          const d = path.getAttribute('d');
+          const commands = d.match(/([MLHVCSQTAZmlhvcsqtaz])/g);
+          totalVertices += commands.length;
+        });
+        vertexCountLabel.textContent = totalVertices; // 頂点数を表示
       };
       reader.readAsText(file);
     }
@@ -103,7 +118,7 @@
     const svgDocument = parser.parseFromString(svgContent, 'image/svg+xml');
     const svgElement = svgDocument.documentElement;
 
-    // 複雑性 (頂点の数)
+    // 複雑性 (頂点数)
     const complexity = parseFloat(document.getElementById('complexity').value);
     const paths = svgElement.querySelectorAll('path');
     paths.forEach((path) => {
@@ -155,6 +170,7 @@
   });
 
   // 変形したSVGをダウンロードする
+  const saveButton = document.getElementById('saveButton');
   saveButton.addEventListener('click', function() {
     if (!svgContent) return;
 
