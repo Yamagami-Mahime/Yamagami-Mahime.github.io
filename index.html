@@ -3,27 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG変換ツール (SVG Transformer)</title>
+    <title>SVG変換ツール</title>
     <style>
         .container {
             padding: 20px;
-            max-width: 400px;
+            max-width: 500px;
             margin: auto;
             background-color: white;
             border-radius: 15px;
             box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
         }
-        .slider {
-            width: 100%;
+        .slider-container {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
         }
         .preview {
-            width: 250px;
-            height: 250px;
-            margin: 20px auto;
+            width: 200px;
+            height: 200px;
             border: 1px solid #ccc;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            margin: 20px auto;
         }
         .button {
             background-color: #3498db;
@@ -32,6 +32,8 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            display: block;
+            margin: 20px auto;
         }
         .button:hover {
             background-color: #2980b9;
@@ -41,38 +43,52 @@
 <body>
 
     <div class="container">
-        <h1 class="text-center">SVG変換ツール (SVG Transformer)</h1>
-        
-        <input type="file" id="fileInput" accept=".svg" class="slider"/>
+        <h1>SVG変換ツール</h1>
 
+        <!-- SVG表示領域 -->
         <div class="preview" id="svgPreview">
-            <!-- Transformed SVG will be displayed here -->
+            <!-- 読み込んだSVGがここに表示される -->
         </div>
 
-        <div>
-            <label>複雑性 (Complexity)</label>
-            <input type="range" id="complexitySlider" min="1" max="5" step="0.1" class="slider" value="1">
-        </div>
-        <div>
-            <label>直線性 (Linearity)</label>
-            <input type="range" id="linearitySlider" min="0" max="1" step="0.01" class="slider" value="0">
-        </div>
-        <div>
-            <label>振幅 (Elongation)</label>
-            <input type="range" id="elongationSlider" min="0.5" max="2" step="0.1" class="slider" value="1">
-        </div>
-        <div>
-            <label>対称性 (Symmetry)</label>
-            <input type="range" id="symmetrySlider" min="-1" max="1" step="0.1" class="slider" value="0">
-        </div>
-        <div>
-            <label>方向性 (Orientation)</label>
-            <input type="range" id="orientationSlider" min="0" max="360" step="1" class="slider" value="0">
+        <!-- ファイル選択 -->
+        <input type="file" id="fileInput" accept=".svg">
+
+        <!-- 複雑性スライダー -->
+        <div class="slider-container">
+            <label>複雑性 (小)</label>
+            <input type="range" id="complexitySlider" min="1" max="5" step="0.1" value="1">
+            <label>大</label>
         </div>
 
-        <div class="text-center">
-            <button id="saveButton" class="button">画像として保存 (Save as SVG)</button>
+        <!-- 直線性スライダー -->
+        <div class="slider-container">
+            <label>丸</label>
+            <input type="range" id="linearitySlider" min="0" max="1" step="0.01" value="0">
+            <label>直</label>
         </div>
+
+        <!-- 振幅スライダー -->
+        <div class="slider-container">
+            <label>細</label>
+            <input type="range" id="elongationSlider" min="0.5" max="2" step="0.1" value="1">
+            <label>太</label>
+        </div>
+
+        <!-- 対称性スライダー -->
+        <div class="slider-container">
+            <label>低</label>
+            <input type="range" id="symmetrySlider" min="-1" max="1" step="0.1" value="0">
+            <label>高</label>
+        </div>
+
+        <!-- 向きスライダー -->
+        <div class="slider-container">
+            <label>方向</label>
+            <input type="range" id="orientationSlider" min="0" max="360" step="1" value="0">
+        </div>
+
+        <!-- SVG保存ボタン -->
+        <button class="button" id="saveButton">画像として保存</button>
     </div>
 
     <script>
@@ -110,7 +126,7 @@
             const parser = new DOMParser();
             const svg = parser.parseFromString(svgContent, 'image/svg+xml').documentElement;
 
-            // Apply complexity
+            // 複雑性 (頂点の数)
             const complexity = complexitySlider.value;
             const paths = svg.querySelectorAll('path');
             paths.forEach(path => {
@@ -119,19 +135,19 @@
                 path.setAttribute('d', newD);
             });
 
-            // Apply linearity (roundness)
+            // 直線性 (丸さ)
             const linearity = linearitySlider.value;
             svg.style.borderRadius = `${linearity * 50}%`;
 
-            // Apply elongation (aspect ratio)
+            // 振幅 (縦横比)
             const elongation = elongationSlider.value;
             svg.style.transform += ` scaleX(${elongation})`;
 
-            // Apply symmetry (left-right difference)
+            // 対称性 (左右の違い)
             const symmetry = symmetrySlider.value;
             svg.style.transform += ` skewX(${symmetry * 45}deg)`;
 
-            // Apply orientation (rotation)
+            // 向き (回転)
             const orientation = orientationSlider.value;
             svg.style.transform += ` rotate(${orientation}deg)`;
 
@@ -150,7 +166,6 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         });
-
     </script>
 </body>
 </html>
