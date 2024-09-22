@@ -9,8 +9,8 @@ const SVGTransformer = () => {
   const [elongation, setElongation] = useState(1);
   const [symmetry, setSymmetry] = useState(0);
   const [orientation, setOrientation] = useState(0);
-  const svgRef = useRef(null);
-
+  const svgContainerRef = useRef(null);
+  
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
@@ -20,40 +20,56 @@ const SVGTransformer = () => {
     }
   };
 
-  const applyTransformations = () => {
-    if (!svgContent) return svgContent;
+  useEffect(() => {
+    if (!svgContent || !svgContainerRef.current) return;
 
     const parser = new DOMParser();
-    const svg = parser.parseFromString(svgContent, 'image/svg+xml').documentElement;
+    const svgDocument = parser.parseFromString(svgContent, 'image/svg+xml');
+    const svgElement = svgDocument.documentElement;
 
-    // Apply complexity (number of vertices)
-    const paths = svg.querySelectorAll('path');
-    paths.forEach(path => {
-      const d = path.getAttribute('d');
-      const newD = d.replace(/([MLHVCSQTAZmlhvcsqtaz])/g, `$1 `.repeat(complexity));
-      path.setAttribute('d', newD);
+    // 複雑性 (頂点の数)
+    const paths = svgElement.querySelectorAll('path');
+    paths.forEach((path) => {
+      let d = path.getAttribute('d');
+      d = d.replace(/([MLHVCSQTAZmlhvcsqtaz])/g, `$1 `.repeat(complexity));
+      path.setAttribute('d', d);
     });
 
-    // Apply linearity (roundness)
-    svg.style.borderRadius = `${linearity * 50}%`;
+    // 直線性 (丸さ)
+    const circles = svgElement.querySelectorAll('circle, ellipse');
+    circles.forEach((circle) => {
+      const r = parseFloat(circle.getAttribute('r') || 0);
+      const rx = parseFloat(circle.getAttribute('rx') || 0);
+      const ry = parseFloat(circle.getAttribute('ry') || 0);
 
-    // Apply elongation (aspect ratio)
-    svg.style.transform += ` scaleX(${elongation})`;
+      if (r) {
+        circle.setAttribute('r', r * (1 - linearity));
+      }
+      if (rx && ry) {
+        circle.setAttribute('rx', rx * (1 - linearity));
+        circle.setAttribute('ry', ry * (1 - linearity));
+      }
+    });
 
-    // Apply symmetry (left-right difference)
-    const width = svg.getAttribute('width');
-    svg.style.transform += ` skewX(${symmetry * 45}deg)`;
+    // 振幅 (縦横比)
+    svgElement.style.transform = `scaleX(${elongation})`;
 
-    // Apply orientation (rotation)
-    svg.style.transform += ` rotate(${orientation}deg)`;
+    // 対称性 (左右の歪み)
+    svgElement.style.transform += ` skewX(${symmetry * 45}deg)`;
 
-    return new XMLSerializer().serializeToString(svg);
-  };
+    // 向き (回転)
+    svgElement.style.transform += ` rotate(${orientation}deg)`;
 
-  const transformedSvg = applyTransformations();
+    // SVGをDOMに挿入
+    svgContainerRef.current.innerHTML = '';
+    svgContainerRef.current.appendChild(svgElement);
+
+  }, [svgContent, complexity, linearity, elongation, symmetry, orientation]);
 
   const saveSVG = () => {
-    const blob = new Blob([transformedSvg], { type: 'image/svg+xml' });
+    if (!svgContent) return;
+
+    const blob = new Blob([svgContent], { type: 'image/svg+xml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -67,13 +83,11 @@ const SVGTransformer = () => {
   return (
     <div className="p-4 max-w-md mx-auto bg-white rounded-xl shadow-md space-y-6">
       <h1 className="text-2xl font-bold text-center">SVG変換ツール (SVG Transformer)</h1>
-      
+
       <input type="file" accept=".svg" onChange={handleFileUpload} className="w-full" />
 
       <div className="w-64 h-64 mx-auto border border-gray-300 flex items-center justify-center">
-        {transformedSvg && (
-          <div dangerouslySetInnerHTML={{ __html: transformedSvg }} />
-        )}
+        <div ref={svgContainerRef} />
       </div>
 
       <div className="space-y-4">
