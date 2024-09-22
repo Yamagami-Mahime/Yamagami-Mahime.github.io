@@ -1,156 +1,111 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG変換ツール (SVG Transformer)</title>
-    <style>
-        .container {
-            padding: 20px;
-            max-width: 400px;
-            margin: auto;
-            background-color: white;
-            border-radius: 15px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
-        }
-        .slider {
-            width: 100%;
-        }
-        .preview {
-            width: 250px;
-            height: 250px;
-            margin: 20px auto;
-            border: 1px solid #ccc;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .button {
-            background-color: #3498db;
-            color: white;
-            padding: 10px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .button:hover {
-            background-color: #2980b9;
-        }
-    </style>
-</head>
-<body>
+import React, { useState, useRef, useEffect } from 'react';
+import { Slider } from '@/components/ui/slider';
+import { Button } from '@/components/ui/button';
 
-    <div class="container">
-        <h1 class="text-center">SVG変換ツール (SVG Transformer)</h1>
-        
-        <input type="file" id="fileInput" accept=".svg" class="slider"/>
+const SVGTransformer = () => {
+  const [svgContent, setSvgContent] = useState('');
+  const [complexity, setComplexity] = useState(1);
+  const [linearity, setLinearity] = useState(0);
+  const [elongation, setElongation] = useState(1);
+  const [symmetry, setSymmetry] = useState(0);
+  const [orientation, setOrientation] = useState(0);
+  const svgRef = useRef(null);
 
-        <div class="preview" id="svgPreview">
-            <!-- Transformed SVG will be displayed here -->
-        </div>
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => setSvgContent(e.target.result);
+      reader.readAsText(file);
+    }
+  };
 
-        <div>
-            <label>複雑性 (Complexity)</label>
-            <input type="range" id="complexitySlider" min="1" max="5" step="0.1" class="slider" value="1">
-        </div>
-        <div>
-            <label>直線性 (Linearity)</label>
-            <input type="range" id="linearitySlider" min="0" max="1" step="0.01" class="slider" value="0">
-        </div>
-        <div>
-            <label>振幅 (Elongation)</label>
-            <input type="range" id="elongationSlider" min="0.5" max="2" step="0.1" class="slider" value="1">
-        </div>
-        <div>
-            <label>対称性 (Symmetry)</label>
-            <input type="range" id="symmetrySlider" min="-1" max="1" step="0.1" class="slider" value="0">
-        </div>
-        <div>
-            <label>方向性 (Orientation)</label>
-            <input type="range" id="orientationSlider" min="0" max="360" step="1" class="slider" value="0">
-        </div>
+  const applyTransformations = () => {
+    if (!svgContent) return svgContent;
 
-        <div class="text-center">
-            <button id="saveButton" class="button">画像として保存 (Save as SVG)</button>
+    const parser = new DOMParser();
+    const svg = parser.parseFromString(svgContent, 'image/svg+xml').documentElement;
+
+    // Apply complexity (number of vertices)
+    const paths = svg.querySelectorAll('path');
+    paths.forEach(path => {
+      const d = path.getAttribute('d');
+      const newD = d.replace(/([MLHVCSQTAZmlhvcsqtaz])/g, `$1 `.repeat(complexity));
+      path.setAttribute('d', newD);
+    });
+
+    // Apply linearity (roundness)
+    svg.style.borderRadius = `${linearity * 50}%`;
+
+    // Apply elongation (aspect ratio)
+    svg.style.transform += ` scaleX(${elongation})`;
+
+    // Apply symmetry (left-right difference)
+    const width = svg.getAttribute('width');
+    svg.style.transform += ` skewX(${symmetry * 45}deg)`;
+
+    // Apply orientation (rotation)
+    svg.style.transform += ` rotate(${orientation}deg)`;
+
+    return new XMLSerializer().serializeToString(svg);
+  };
+
+  const transformedSvg = applyTransformations();
+
+  const saveSVG = () => {
+    const blob = new Blob([transformedSvg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transformed.svg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="p-4 max-w-md mx-auto bg-white rounded-xl shadow-md space-y-6">
+      <h1 className="text-2xl font-bold text-center">SVG変換ツール (SVG Transformer)</h1>
+      
+      <input type="file" accept=".svg" onChange={handleFileUpload} className="w-full" />
+
+      <div className="w-64 h-64 mx-auto border border-gray-300 flex items-center justify-center">
+        {transformedSvg && (
+          <div dangerouslySetInnerHTML={{ __html: transformedSvg }} />
+        )}
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <label className="block mb-2">複雑性 (Complexity)</label>
+          <Slider min={1} max={5} step={0.1} value={[complexity]} onValueChange={(v) => setComplexity(v[0])} />
         </div>
+        <div>
+          <label className="block mb-2">直線性 (Linearity)</label>
+          <Slider min={0} max={1} step={0.01} value={[linearity]} onValueChange={(v) => setLinearity(v[0])} />
+        </div>
+        <div>
+          <label className="block mb-2">振幅 (Elongation)</label>
+          <Slider min={0.5} max={2} step={0.1} value={[elongation]} onValueChange={(v) => setElongation(v[0])} />
+        </div>
+        <div>
+          <label className="block mb-2">対称性 (Symmetry)</label>
+          <Slider min={-1} max={1} step={0.1} value={[symmetry]} onValueChange={(v) => setSymmetry(v[0])} />
+        </div>
+        <div>
+          <label className="block mb-2">方向性 (Orientation)</label>
+          <Slider min={0} max={360} step={1} value={[orientation]} onValueChange={(v) => setOrientation(v[0])} />
+        </div>
+      </div>
+
+      <div className="text-center">
+        <Button onClick={saveSVG} className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
+          画像として保存 (Save as SVG)
+        </Button>
+      </div>
     </div>
+  );
+};
 
-    <script>
-        let svgContent = '';
-        const fileInput = document.getElementById('fileInput');
-        const svgPreview = document.getElementById('svgPreview');
-        const complexitySlider = document.getElementById('complexitySlider');
-        const linearitySlider = document.getElementById('linearitySlider');
-        const elongationSlider = document.getElementById('elongationSlider');
-        const symmetrySlider = document.getElementById('symmetrySlider');
-        const orientationSlider = document.getElementById('orientationSlider');
-        const saveButton = document.getElementById('saveButton');
-
-        fileInput.addEventListener('change', handleFileUpload);
-
-        function handleFileUpload(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    svgContent = e.target.result;
-                    displaySVG(svgContent);
-                };
-                reader.readAsText(file);
-            }
-        }
-
-        function displaySVG(content) {
-            svgPreview.innerHTML = content;
-        }
-
-        function applyTransformations() {
-            if (!svgContent) return svgContent;
-
-            const parser = new DOMParser();
-            const svg = parser.parseFromString(svgContent, 'image/svg+xml').documentElement;
-
-            // Apply complexity
-            const complexity = complexitySlider.value;
-            const paths = svg.querySelectorAll('path');
-            paths.forEach(path => {
-                const d = path.getAttribute('d');
-                const newD = d.replace(/([MLHVCSQTAZmlhvcsqtaz])/g, `$1 `.repeat(complexity));
-                path.setAttribute('d', newD);
-            });
-
-            // Apply linearity (roundness)
-            const linearity = linearitySlider.value;
-            svg.style.borderRadius = `${linearity * 50}%`;
-
-            // Apply elongation (aspect ratio)
-            const elongation = elongationSlider.value;
-            svg.style.transform += ` scaleX(${elongation})`;
-
-            // Apply symmetry (left-right difference)
-            const symmetry = symmetrySlider.value;
-            svg.style.transform += ` skewX(${symmetry * 45}deg)`;
-
-            // Apply orientation (rotation)
-            const orientation = orientationSlider.value;
-            svg.style.transform += ` rotate(${orientation}deg)`;
-
-            return new XMLSerializer().serializeToString(svg);
-        }
-
-        saveButton.addEventListener('click', () => {
-            const transformedSvg = applyTransformations();
-            const blob = new Blob([transformedSvg], { type: 'image/svg+xml' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'transformed.svg';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        });
-
-    </script>
-</body>
-</html>
+export default SVGTransformer;
