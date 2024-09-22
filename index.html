@@ -51,7 +51,7 @@
   <!-- スライダーのコントロールエリア -->
   <div class="controls">
     <label for="complexity">頂点数 (Vertex Count): <span id="vertexCount">0</span></label>
-    <input type="range" id="complexity" class="slider" min="1" max="10" step="1" value="1">
+    <input type="range" id="complexity" class="slider" min="1" max="100" step="1" value="1">
 
     <label for="linearity">直線性 (Linearity): <span id="linearityValue">0</span></label>
     <input type="range" id="linearity" class="slider" min="0" max="1" step="0.01" value="0">
@@ -72,6 +72,7 @@
 
 <script>
   let svgContent = ''; // SVGの内容を保存する変数
+  let originalPaths = []; // オリジナルのpath情報を保存
   const svgPreview = document.getElementById('svgPreview');
   const fileInput = document.getElementById('fileInput');
   const vertexCountLabel = document.getElementById('vertexCount');
@@ -96,98 +97,87 @@
         svgPreview.innerHTML = ''; // プレビューをクリア
         svgPreview.appendChild(svgDocument.documentElement); // SVGを表示
 
-        // 頂点数の計算
+        originalPaths = []; // オリジナルのpathデータをリセット
         const paths = svgDocument.querySelectorAll('path');
-        let totalVertices = 0;
         paths.forEach(path => {
-          const d = path.getAttribute('d');
-          const commands = d.match(/([MLHVCSQTAZmlhvcsqtaz])/g);
-          totalVertices += commands.length;
+          originalPaths.push(path.getAttribute('d')); // pathのオリジナルデータを保存
         });
-        vertexCountLabel.textContent = totalVertices; // 頂点数を表示
+
+        // 頂点数の計算
+        calculateVertexCount(svgDocument);
       };
       reader.readAsText(file);
     }
   });
 
-  // 変形を適用する関数
-  function applyTransformations() {
-    if (!svgContent) return;
-
-    const parser = new DOMParser();
-    const svgDocument = parser.parseFromString(svgContent, 'image/svg+xml');
-    const svgElement = svgDocument.documentElement;
-
-    // 複雑性 (頂点数)
-    const complexity = parseFloat(document.getElementById('complexity').value);
-    const paths = svgElement.querySelectorAll('path');
-    paths.forEach((path) => {
-      let d = path.getAttribute('d');
-      d = d.replace(/([MLHVCSQTAZmlhvcsqtaz])/g, `$1 `.repeat(complexity));
-      path.setAttribute('d', d);
+  // 頂点数の計算関数
+  function calculateVertexCount(svgDocument) {
+    const paths = svgDocument.querySelectorAll('path');
+    let totalVertices = 0;
+    paths.forEach(path => {
+      const d = path.getAttribute('d');
+      const commands = d.match(/([MLHVCSQTAZmlhvcsqtaz])/g);
+      totalVertices += commands ? commands.length : 0;
     });
-
-    // 直線性 (丸さ)
-    const linearity = parseFloat(document.getElementById('linearity').value);
-    const circles = svgElement.querySelectorAll('circle, ellipse');
-    circles.forEach((circle) => {
-      const r = parseFloat(circle.getAttribute('r') || 0);
-      const rx = parseFloat(circle.getAttribute('rx') || 0);
-      const ry = parseFloat(circle.getAttribute('ry') || 0);
-
-      if (r) {
-        circle.setAttribute('r', r * (1 - linearity));
-      }
-      if (rx && ry) {
-        circle.setAttribute('rx', rx * (1 - linearity));
-        circle.setAttribute('ry', ry * (1 - linearity));
-      }
-    });
-
-    // 振幅 (縦横比)
-    const elongation = parseFloat(document.getElementById('elongation').value);
-    svgElement.style.transform = `scaleX(${elongation})`;
-
-    // 対称性 (左右の歪み)
-    const symmetry = parseFloat(document.getElementById('symmetry').value);
-    svgElement.style.transform += ` skewX(${symmetry * 45}deg)`;
-
-    // 向き (回転)
-    const orientation = parseFloat(document.getElementById('orientation').value);
-    svgElement.style.transform += ` rotate(${orientation}deg)`;
-
-    // 変形したSVGをプレビューに反映
-    svgPreview.innerHTML = '';
-    svgPreview.appendChild(svgElement);
+    vertexCountLabel.textContent = totalVertices; // 頂点数を表示
   }
 
-  // スライダーの変化を監視し、SVGの変形を適用
-  document.querySelectorAll('.slider').forEach(slider => {
-    slider.addEventListener('input', () => {
-      updateSliderValues();
-      applyTransformations();
+  // 頂点数を変更する関数
+  function modifyVertices() {
+    const complexity = parseFloat(document.getElementById('complexity').value);
+    const parser = new DOMParser();
+    const svgDocument = parser.parseFromString(svgContent, 'image/svg+xml');
+    const paths = svgDocument.querySelectorAll('path');
+
+    paths.forEach((path, index) => {
+      let d = originalPaths[index]; // オリジナルのpathデータを基に変更
+      const commands = d.match(/([MLHVCSQTAZmlhvcsqtaz])([^MLHVCSQTAZmlhvcsqtaz]*)/g);
+
+      if (commands) {
+        // 頂点を増やす/減らす処理
+        let newCommands = [];
+        commands.forEach((command, i) => {
+          newCommands.push(command); // オリジナルのコマンドを追加
+
+          if (i < commands.length - 1 && complexity > 1) {
+            // 2つの頂点の間に新たな頂点を追加 (中点を計算)
+            const nextCommand = commands[i + 1];
+            const midPoint = calculateMidPoint(command, nextCommand);
+            if (midPoint) {
+              newCommands.push(`L${midPoint.x},${midPoint.y}`);
+            }
+          }
+        });
+
+        // 生成したコマンドをpathに設定
+        path.setAttribute('d', newCommands.join(' '));
+      }
     });
-  });
 
-  // 変形したSVGをダウンロードする
-  const saveButton = document.getElementById('saveButton');
-  saveButton.addEventListener('click', function() {
-    if (!svgContent) return;
+    svgPreview.innerHTML = '';
+    svgPreview.appendChild(svgDocument.documentElement); // 変更をプレビューに反映
+    calculateVertexCount(svgDocument);
+  }
 
-    const svgElement = svgPreview.querySelector('svg');
-    const serializer = new XMLSerializer();
-    const transformedSvg = serializer.serializeToString(svgElement);
-    const blob = new Blob([transformedSvg], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'transformed.svg';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  });
-</script>
+  // 中点を計算する関数 (シンプルな場合のみ)
+  function calculateMidPoint(cmd1, cmd2) {
+    const coords1 = cmd1.match(/[-+]?[0-9]*\.?[0-9]+/g);
+    const coords2 = cmd2.match(/[-+]?[0-9]*\.?[0-9]+/g);
+    if (coords1 && coords2) {
+      const x1 = parseFloat(coords1[0]);
+      const y1 = parseFloat(coords1[1]);
+      const x2 = parseFloat(coords2[0]);
+      const y2 = parseFloat(coords2[1]);
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
+      return { x: midX, y: midY };
+    }
+    return null;
+  }
 
-</body>
-</html>
+  // スライダーの変化を監視し、頂点数の変更を適用
+  document.getElementById('complexity').addEventListener('input', modifyVertices);
+
+  // その他のスライダーの変化を監視し、SVGの変形を適用
+  document.querySelectorAll('.slider').forEach(slider => {
+    slider
