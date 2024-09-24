@@ -1,148 +1,157 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>図形変形ツール</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-    }
-    .container {
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-      text-align: center;
-    }
-    .svg-preview {
-      border: 1px solid #ccc;
-      width: 400px;
-      height: 400px;
-      margin: 20px auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    label, input {
-      display: block;
-      margin: 10px 0;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Transformer</title>
+    <style>
+        .svg-preview {
+            border: 1px solid #ccc;
+            width: 400px;
+            height: 400px;
+            margin: 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden; /* SVGが表示領域に収まるようにする */
+        }
+        .slider-container {
+            display: flex;
+            flex-direction: column;
+            margin: 10px 0;
+        }
+        .slider-container label {
+            margin-bottom: 5px;
+        }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <h1>SVG変換ツール</h1>
+        
+        <!-- ファイル選択 -->
+        <input type="file" id="fileInput" accept=".svg" />
 
-<div class="container">
-  <h1>図形変形ツール</h1>
+        <!-- SVGプレビューエリア -->
+        <div id="svgPreview" class="svg-preview"></div>
 
-  <!-- 画像を選択するファイル入力 -->
-  <input type="file" id="fileInput" accept=".svg">
-  <div id="svgPreview" class="svg-preview">SVG画像を選択してください</div>
+        <!-- スライダーコントロール -->
+        <div class="slider-container">
+            <label>複雑度 (Complexity)</label>
+            <input type="range" id="complexity" min="1" max="10" value="1">
+        </div>
+        <div class="slider-container">
+            <label>丸み (Linearity)</label>
+            <input type="range" id="linearity" min="0" max="1" step="0.01" value="0">
+        </div>
+        <div class="slider-container">
+            <label>対称性 (Symmetry)</label>
+            <input type="range" id="symmetry" min="-1" max="1" step="0.1" value="0">
+        </div>
+        <div class="slider-container">
+            <label>方向 (Rotation)</label>
+            <input type="range" id="orientation" min="0" max="360" value="0">
+        </div>
+        <div class="slider-container">
+            <label>縦横比 (Aspect Ratio)</label>
+            <input type="range" id="elongation" min="0.5" max="2" step="0.1" value="1">
+        </div>
 
-  <!-- 変形操作のスライドバー -->
-  <label for="complexitySlider">① 図形の複雑度 (頂点数): </label>
-  <input type="range" id="complexitySlider" min="1" max="10" step="1" value="5">
+        <!-- 変換したSVGを保存 -->
+        <button id="saveSVG">SVGとして保存</button>
+    </div>
 
-  <label for="roundnessSlider">② 図形の丸みの具合 (円形性): </label>
-  <input type="range" id="roundnessSlider" min="0" max="1" step="0.1" value="0.5">
+    <script>
+        let svgElement = null;
+        let svgContent = '';
 
-  <label for="symmetrySlider">③ 図形の対称度: </label>
-  <input type="range" id="symmetrySlider" min="-1" max="1" step="0.1" value="0">
+        document.getElementById('fileInput').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file && file.type === 'image/svg+xml') {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    svgContent = e.target.result;
+                    console.log(svgContent); // 読み込まれたSVGデータを確認
+                    parseSVG(svgContent);
+                };
+                reader.readAsText(file);
+            }
+        });
 
-  <label for="rotationSlider">④ 図形の方向 (回転角度): </label>
-  <input type="range" id="rotationSlider" min="0" max="360" step="1" value="0">
+        function parseSVG(content) {
+            try {
+                const parser = new DOMParser();
+                const svgDoc = parser.parseFromString(content, 'image/svg+xml');
+                svgElement = svgDoc.documentElement;
 
-  <label for="scaleSlider">⑤ 図形の縦横比 (スケール): </label>
-  <input type="range" id="scaleSlider" min="0.5" max="2" step="0.1" value="1">
+                // SVGサイズと表示設定
+                svgElement.setAttribute('width', '100%');
+                svgElement.setAttribute('height', '100%');
+                svgElement.setAttribute('viewBox', '0 0 400 400'); // ここでサイズを設定
 
-  <!-- 保存ボタン -->
-  <button id="saveButton">変形した図形を保存</button>
-</div>
+                const preview = document.getElementById('svgPreview');
+                preview.innerHTML = ''; // プレビューをリセット
+                preview.appendChild(svgElement);
 
-<script>
-  let svgContent = ''; // 元のSVGのコンテンツ
-  let svgElement; // DOMとしてのSVGエレメント
+                applyTransformations();
+            } catch (error) {
+                console.error("SVG解析エラー: ", error);
+                document.getElementById('svgPreview').textContent = 'SVGの読み込みに失敗しました';
+            }
+        }
 
-  // ファイルが選択された時にSVGを読み込む関数
-  document.getElementById('fileInput').addEventListener('change', (event) => {
-    const file = event.target.files[0];
-    if (file && file.type === 'image/svg+xml') {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        svgContent = e.target.result;
-        parseSVG(svgContent);
-      };
-      reader.readAsText(file);
-    }
-  });
+        function applyTransformations() {
+            if (!svgElement) return;
 
-  // SVGをDOMに変換し、プレビューとして表示する関数
-  function parseSVG(content) {
-    const parser = new DOMParser();
-    const svgDoc = parser.parseFromString(content, 'image/svg+xml');
-    svgElement = svgDoc.documentElement;
+            const complexity = document.getElementById('complexity').value;
+            const linearity = document.getElementById('linearity').value;
+            const symmetry = document.getElementById('symmetry').value;
+            const orientation = document.getElementById('orientation').value;
+            const elongation = document.getElementById('elongation').value;
 
-    const preview = document.getElementById('svgPreview');
-    preview.innerHTML = ''; // プレビューをリセット
-    preview.appendChild(svgElement);
-    
-    applyTransformations();
-  }
+            // 複雑度（単純に頂点の数を変える処理例）
+            const paths = svgElement.querySelectorAll('path');
+            paths.forEach(path => {
+                const d = path.getAttribute('d');
+                const newD = d.replace(/([MLHVCSQTAZmlhvcsqtaz])/g, `$1 `.repeat(complexity));
+                path.setAttribute('d', newD);
+            });
 
-  // 各スライダーが操作された時に変形を適用
-  document.getElementById('complexitySlider').addEventListener('input', applyTransformations);
-  document.getElementById('roundnessSlider').addEventListener('input', applyTransformations);
-  document.getElementById('symmetrySlider').addEventListener('input', applyTransformations);
-  document.getElementById('rotationSlider').addEventListener('input', applyTransformations);
-  document.getElementById('scaleSlider').addEventListener('input', applyTransformations);
+            // 丸み (Linearity)
+            svgElement.style.borderRadius = `${linearity * 50}%`;
 
-  // SVGに変形を適用する関数
-  function applyTransformations() {
-    if (!svgElement) return;
+            // 対称性 (Symmetry)
+            svgElement.style.transform = `skewX(${symmetry * 45}deg)`;
 
-    const complexity = document.getElementById('complexitySlider').value;
-    const roundness = document.getElementById('roundnessSlider').value;
-    const symmetry = document.getElementById('symmetrySlider').value;
-    const rotation = document.getElementById('rotationSlider').value;
-    const scale = document.getElementById('scaleSlider').value;
+            // 回転 (Rotation)
+            svgElement.style.transform += ` rotate(${orientation}deg)`;
 
-    // ① 複雑度 (頂点数の変更) - ここでは単純なエフェクト
-    const paths = svgElement.querySelectorAll('path');
-    paths.forEach(path => {
-      let d = path.getAttribute('d');
-      d = d.replace(/([MLHVCSQTAZ])/g, '$1'.repeat(complexity)); // 複雑度を変更
-      path.setAttribute('d', d);
-    });
+            // 縦横比 (Aspect Ratio)
+            svgElement.style.transform += ` scaleX(${elongation})`;
+        }
 
-    // ② 丸みの具合 (ボーダーラディウス的な丸み)
-    svgElement.style.borderRadius = `${roundness * 50}%`;
+        // スライダー変更時に変換を適用
+        document.querySelectorAll('input[type="range"]').forEach(input => {
+            input.addEventListener('input', applyTransformations);
+        });
 
-    // ③ 対称度 (左右反転や非対称)
-    svgElement.style.transform = `scaleX(${1 + symmetry})`;
+        // SVGファイルの保存
+        document.getElementById('saveSVG').addEventListener('click', () => {
+            if (!svgElement) return;
 
-    // ④ 回転
-    svgElement.style.transform += ` rotate(${rotation}deg)`;
+            const serializer = new XMLSerializer();
+            const transformedSVG = serializer.serializeToString(svgElement);
 
-    // ⑤ 縦横比 (スケール)
-    svgElement.style.transform += ` scale(${scale})`;
-  }
-
-  // 変形されたSVGを保存する関数
-  document.getElementById('saveButton').addEventListener('click', () => {
-    const serializer = new XMLSerializer();
-    const svgString = serializer.serializeToString(svgElement);
-    const blob = new Blob([svgString], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'transformed.svg';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  });
-
-</script>
-
+            const blob = new Blob([transformedSVG], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'transformed.svg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+    </script>
 </body>
 </html>
