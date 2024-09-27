@@ -1,241 +1,100 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shape Deformer</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin: 0;
-      padding: 20px;
-    }
-    .shape-selector {
-      display: flex;
-      justify-content: space-around;
-      margin-bottom: 20px;
-    }
-    .shape-button {
-      width: 50px;
-      height: 50px;
-      margin: 5px;
-      border: 2px solid black;
-      cursor: pointer;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-    .shape-button.active {
-      border-color: red;
-    }
-    .shape-display {
-      width: 200px;
-      height: 200px;
-      border: 1px solid black;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    .controls {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    .slider-control {
-      margin: 10px 0;
-    }
-    label {
-      display: block;
-      margin-bottom: 5px;
-    }
-    .save-button {
-      padding: 10px 20px;
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Shape Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .upload-container {
+            margin-bottom: 20px;
+        }
+        #svgPreview {
+            border: 1px solid #000;
+            width: 200px;
+            height: 200px;
+            margin-bottom: 20px;
+        }
+        .generated-shapes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .shape {
+            border: 1px solid #000;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
 </head>
 <body>
 
-  <!-- Shape Selector -->
-  <div class="shape-selector">
-    <div class="shape-button active" onclick="selectShape('blob')">Blob</div>
-    <div class="shape-button" onclick="selectShape('star')">Star</div>
-    <div class="shape-button" onclick="selectShape('ellipse')">Ellipse</div>
-    <div class="shape-button" onclick="selectShape('triangle')">Triangle</div>
-    <div class="shape-button" onclick="selectShape('diamond')">Diamond</div>
-    <div class="shape-button" onclick="selectShape('wave')">Wave</div>
-  </div>
-
-  <!-- Shape Display -->
-  <div class="shape-display">
-    <canvas id="shapeCanvas" width="200" height="200"></canvas>
-  </div>
-
-  <!-- Controls -->
-  <div class="controls">
-    <div class="slider-control">
-      <label>頂点の数: <span id="vertices-label">10</span></label>
-      <input type="range" id="vertices-slider" min="3" max="30" value="10" oninput="updateShape()">
+    <div class="upload-container">
+        <input type="file" id="svgInput" accept=".svg">
+        <button onclick="generateShapes()">Generate Similar Shapes</button>
     </div>
-    <div class="slider-control">
-      <label>角の半径: <span id="corner-radius-label">15</span>px</label>
-      <input type="range" id="corner-radius-slider" min="0" max="50" value="15" oninput="updateShape()">
-    </div>
-    <div class="slider-control">
-      <label>オブジェクト比: <span id="scale-label">50</span>%</label>
-      <input type="range" id="scale-slider" min="0" max="100" value="50" oninput="updateShape()">
-    </div>
-    <div class="slider-control">
-      <label>角度: <span id="angle-label">90</span>°</label>
-      <input type="range" id="angle-slider" min="0" max="180" value="90" oninput="updateShape()">
-    </div>
-    <div class="slider-control">
-      <label>縦横比: <span id="vertical-scale-label">50</span>%</label>
-      <input type="range" id="vertical-scale-slider" min="0" max="100" value="50" oninput="updateShape()">
-    </div>
-  </div>
 
-  <!-- Save as PNG Button -->
-  <button class="save-button" onclick="savePng()">PNGで保存</button>
+    <div id="svgPreview"></div>
 
-  <script>
-    let selectedShape = 'blob';
+    <div class="generated-shapes" id="shapesContainer"></div>
 
-    // Function to select a shape
-    function selectShape(shape) {
-      selectedShape = shape;
-      document.querySelectorAll('.shape-button').forEach(button => button.classList.remove('active'));
-      event.target.classList.add('active');
-      updateShape();
-    }
+    <script>
+        let svgData = '';
 
-    // Function to update the shape based on slider values
-    function updateShape() {
-      const vertices = document.getElementById('vertices-slider').value;
-      const cornerRadius = document.getElementById('corner-radius-slider').value;
-      const scale = document.getElementById('scale-slider').value;
-      const angle = document.getElementById('angle-slider').value * Math.PI / 180; // Convert to radians
-      const verticalScale = document.getElementById('vertical-scale-slider').value / 100;
+        // Load the SVG file
+        document.getElementById('svgInput').addEventListener('change', function (event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
 
-      // Update labels
-      document.getElementById('vertices-label').textContent = vertices;
-      document.getElementById('corner-radius-label').textContent = cornerRadius;
-      document.getElementById('scale-label').textContent = scale;
-      document.getElementById('angle-label').textContent = (angle * 180 / Math.PI).toFixed(0); // Convert back to degrees
-      document.getElementById('vertical-scale-label').textContent = verticalScale * 100;
+            reader.onload = function (e) {
+                svgData = e.target.result;
+                document.getElementById('svgPreview').innerHTML = svgData;
+            };
 
-      // Get the canvas context
-      const canvas = document.getElementById('shapeCanvas');
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (file) {
+                reader.readAsText(file);
+            }
+        });
 
-      // Draw the shape based on the selected shape and slider values
-      ctx.beginPath();
-      switch (selectedShape) {
-        case 'blob':
-          drawBlob(ctx, 100, 100, vertices, cornerRadius, scale, verticalScale);
-          break;
-        case 'star':
-          drawStar(ctx, 100, 100, vertices, 80 * scale, cornerRadius);
-          break;
-        case 'ellipse':
-          drawEllipse(ctx, 100, 100, 80 * scale, 40 * verticalScale, angle);
-          break;
-        case 'triangle':
-          drawPolygon(ctx, 100, 100, 3, 80 * scale);
-          break;
-        case 'diamond':
-          drawPolygon(ctx, 100, 100, 4, 80 * scale);
-          break;
-        case 'wave':
-          drawWave(ctx, 100, 100, 80 * scale);
-          break;
-        default:
-          break;
-      }
-      ctx.stroke();
-    }
+        // Generate similar shapes
+        function generateShapes() {
+            const container = document.getElementById('shapesContainer');
+            container.innerHTML = ''; // Clear previous shapes
 
-    // Helper functions to draw shapes
-    function drawBlob(ctx, cx, cy, vertices, cornerRadius, scale, verticalScale) {
-      const step = Math.PI * 2 / vertices;
-      ctx.moveTo(cx + (scale * Math.cos(0) * 80), cy + (verticalScale * scale * Math.sin(0) * 80));
-      for (let i = 0; i < vertices; i++) {
-        const angle = i * step;
-        const x = cx + (scale * Math.cos(angle) * (80 + cornerRadius * Math.sin(angle * 3)));
-        const y = cy + (verticalScale * scale * Math.sin(angle) * (80 + cornerRadius * Math.cos(angle * 3)));
-        ctx.lineTo(x, y);
-      }
-      ctx.closePath();
-    }
+            for (let i = 0; i < 10; i++) {
+                const clonedSvg = createSimilarShape(svgData);
+                const shapeDiv = document.createElement('div');
+                shapeDiv.className = 'shape';
+                shapeDiv.innerHTML = clonedSvg;
+                container.appendChild(shapeDiv);
+            }
+        }
 
-    function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
-      let rot = Math.PI / 2 * 3;
-      let x = cx;
-      let y = cy;
-      const step = Math.PI / spikes;
+        // Create a similar shape (simple modification for demonstration)
+        function createSimilarShape(originalSvg) {
+            // Simple random modifications to width and height attributes
+            const parser = new DOMParser();
+            const svgDoc = parser.parseFromString(originalSvg, "image/svg+xml");
+            const svgElement = svgDoc.documentElement;
 
-      ctx.moveTo(cx, cy - outerRadius);
-      for (let i = 0; i < spikes; i++) {
-        x = cx + Math.cos(rot) * outerRadius;
-        y = cy + Math.sin(rot) * outerRadius;
-        ctx.lineTo(x, y);
-        rot += step;
+            // Randomize the width and height
+            const randomScale = Math.random() * 0.5 + 0.75; // Scale between 75% to 125%
+            svgElement.setAttribute('width', `${200 * randomScale}`);
+            svgElement.setAttribute('height', `${200 * randomScale}`);
 
-        x = cx + Math.cos(rot) * innerRadius;
-        y = cy + Math.sin(rot) * innerRadius;
-        ctx.lineTo(x, y);
-        rot += step;
-      }
-      ctx.lineTo(cx, cy - outerRadius);
-    }
-
-    function drawEllipse(ctx, cx, cy, radiusX, radiusY, angle) {
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(angle);
-      ctx.scale(radiusX, radiusY);
-      ctx.arc(0, 0, 1, 0, 2 * Math.PI);
-      ctx.restore();
-    }
-
-    function drawPolygon(ctx, x, y, sides, radius) {
-      const angle = Math.PI * 2 / sides;
-      ctx.moveTo(x + radius * Math.cos(0), y + radius * Math.sin(0));
-      for (let i = 1; i <= sides; i++) {
-        ctx.lineTo(x + radius * Math.cos(i * angle), y + radius * Math.sin(i * angle));
-      }
-      ctx.closePath();
-    }
-
-    function drawWave(ctx, cx, cy, radius) {
-      ctx.moveTo(cx - radius, cy);
-      for (let i = -radius; i <= radius; i++) {
-        const y = cy + Math.sin(i * 0.1) * 20;
-        ctx.lineTo(cx + i, y);
-      }
-    }
-
-    // Save as PNG function
-    function savePng() {
-      const canvas = document.getElementById('shapeCanvas');
-      const link = document.createElement('a');
-      link.download = 'shape.png';
-      link.href = canvas.toDataURL();
-      link.click();
-    }
-
-    // Initial shape
-    updateShape();
-  </script>
+            return svgElement.outerHTML;
+        }
+    </script>
 
 </body>
 </html>
