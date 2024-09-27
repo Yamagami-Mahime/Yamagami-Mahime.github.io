@@ -3,31 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG変形ツール</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <link rel="stylesheet" href="styles.css">
+    <title>SVG編集ツール</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/3.1.1/svg.min.js"></script>
+    <style>
+        #svg-container { width: 500px; height: 500px; border: 1px solid black; }
+        .slider-container { margin: 10px 0; }
+    </style>
 </head>
 <body>
-    <input type="file" id="svgFile" accept=".svg">
-    <div id="originalSvgContainer" class="svg-container"></div>
-    <div id="modifiedSvgContainer" class="svg-container"></div>
-    <div>
+    <input type="file" id="file-input" accept=".svg">
+    <div id="svg-container"></div>
+    <div class="slider-container">
         <label for="complexity">複雑性: </label>
         <input type="range" id="complexity" min="0" max="100" value="50">
     </div>
-    <div>
+    <div class="slider-container">
         <label for="linearity">直線性: </label>
         <input type="range" id="linearity" min="0" max="100" value="50">
     </div>
-    <div>
+    <div class="slider-container">
         <label for="amplitude">振幅: </label>
         <input type="range" id="amplitude" min="0" max="100" value="50">
     </div>
-    <div>
+    <div class="slider-container">
         <label for="symmetry">対称性: </label>
         <input type="range" id="symmetry" min="0" max="100" value="50">
     </div>
-    <button id="saveButton">保存</button>
-    <script src="script.js"></script>
+    <button id="save-btn">保存</button>
+
+    <script>
+        let svgElement;
+        let originalPath;
+
+        document.getElementById('file-input').addEventListener('change', handleFileSelect);
+        document.getElementById('complexity').addEventListener('input', updateSVG);
+        document.getElementById('linearity').addEventListener('input', updateSVG);
+        document.getElementById('amplitude').addEventListener('input', updateSVG);
+        document.getElementById('symmetry').addEventListener('input', updateSVG);
+        document.getElementById('save-btn').addEventListener('click', saveSVG);
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const svgContent = e.target.result;
+                const parser = new DOMParser();
+                const svgDoc = parser.parseFromString(svgContent, "image/svg+xml");
+                const path = svgDoc.querySelector('path');
+
+                if (path) {
+                    originalPath = path.getAttribute('d');
+                    svgElement = SVG().addTo('#svg-container').size(500, 500);
+                    svgElement.path(originalPath).fill('none').stroke({ color: '#000', width: 2 });
+                    updateSVG();
+                } else {
+                    alert('SVGファイルにパスが見つかりません。');
+                }
+            };
+
+            reader.readAsText(file);
+        }
+
+        function updateSVG() {
+            if (!svgElement || !originalPath) return;
+
+            const complexity = document.getElementById('complexity').value;
+            const linearity = document.getElementById('linearity').value;
+            const amplitude = document.getElementById('amplitude').value;
+            const symmetry = document.getElementById('symmetry').value;
+
+            const modifiedPath = modifyPath(originalPath, complexity, linearity, amplitude, symmetry);
+            svgElement.clear();
+            svgElement.path(modifiedPath).fill('none').stroke({ color: '#000', width: 2 });
+        }
+
+        function modifyPath(path, complexity, linearity, amplitude, symmetry) {
+            const parsedPath = SVG.parsePathString(path);
+            const modifiedPath = parsedPath.map(segment => {
+                if (segment[0] === 'C' || segment[0] === 'c') {
+                    segment[1] += (Math.random() - 0.5) * (complexity / 10);
+                    segment[2] += (Math.random() - 0.5) * (complexity / 10);
+                    segment[3] += (Math.random() - 0.5) * (complexity / 10);
+                    segment[4] += (Math.random() - 0.5) * (complexity / 10);
+                    segment[5] += (Math.random() - 0.5) * (amplitude / 10);
+                    segment[6] += (Math.random() - 0.5) * (amplitude / 10);
+                }
+                return segment;
+            });
+
+            return SVG.pathToString(modifiedPath);
+        }
+
+        function saveSVG() {
+            if (!svgElement) return;
+
+            const svgData = svgElement.svg();
+            const blob = new Blob([svgData], {type: 'image/svg+xml'});
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'modified_svg.svg';
+            link.click();
+        }
+    </script>
 </body>
 </html>
