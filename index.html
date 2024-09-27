@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG図形変形ツール（400px×400px版）- 複雑な形状にも対応</title>
+    <title>SVG図形変形ツール（400px×400px版）- SVGトレース機能付き</title>
     <style>
         body { font-family: Arial, sans-serif; }
         #controls { margin-bottom: 20px; }
@@ -12,7 +12,7 @@
     </style>
 </head>
 <body>
-    <h1>SVG図形変形ツール（400px×400px版）- 複雑な形状にも対応</h1>
+    <h1>SVG図形変形ツール（400px×400px版）- SVGトレース機能付き</h1>
     <div id="controls">
         <input type="file" id="svgFile" accept=".svg">
         <input type="range" id="vertexCount" min="3" max="50" value="20">
@@ -42,13 +42,7 @@
                 if (viewBox) {
                     svgContainer.attr('viewBox', viewBox);
                 }
-                originalShape = SVG(svgElement.querySelector('path'));
-                svgContainer.add(originalShape);
-                transformedShape = originalShape.clone();
-                svgContainer.add(transformedShape);
-                centerAndScaleShape();
-                analyzeShape();
-                updateShape();
+                traceSVG(svgElement);
             };
             reader.readAsText(file);
         });
@@ -61,6 +55,62 @@
                 updateShape();
             });
         });
+
+        function traceSVG(svgElement) {
+            const paths = svgElement.querySelectorAll('path, circle, rect, ellipse, polygon, polyline');
+            let combinedPath = '';
+
+            paths.forEach(shape => {
+                let pathData;
+                if (shape.tagName.toLowerCase() === 'path') {
+                    pathData = shape.getAttribute('d');
+                } else {
+                    pathData = convertShapeToPath(shape);
+                }
+                combinedPath += pathData + ' ';
+            });
+
+            originalShape = svgContainer.path(combinedPath).fill('none').stroke({ color: '#000', width: 1 });
+            transformedShape = originalShape.clone();
+            centerAndScaleShape();
+            analyzeShape();
+            updateShape();
+        }
+
+        function convertShapeToPath(shape) {
+            const type = shape.tagName.toLowerCase();
+            let path = '';
+
+            switch (type) {
+                case 'circle':
+                    const cx = parseFloat(shape.getAttribute('cx'));
+                    const cy = parseFloat(shape.getAttribute('cy'));
+                    const r = parseFloat(shape.getAttribute('r'));
+                    path = `M${cx-r},${cy}A${r},${r} 0 1,0 ${cx+r},${cy}A${r},${r} 0 1,0 ${cx-r},${cy}`;
+                    break;
+                case 'rect':
+                    const x = parseFloat(shape.getAttribute('x'));
+                    const y = parseFloat(shape.getAttribute('y'));
+                    const width = parseFloat(shape.getAttribute('width'));
+                    const height = parseFloat(shape.getAttribute('height'));
+                    path = `M${x},${y}h${width}v${height}h-${width}Z`;
+                    break;
+                case 'ellipse':
+                    const ecx = parseFloat(shape.getAttribute('cx'));
+                    const ecy = parseFloat(shape.getAttribute('cy'));
+                    const rx = parseFloat(shape.getAttribute('rx'));
+                    const ry = parseFloat(shape.getAttribute('ry'));
+                    path = `M${ecx-rx},${ecy}A${rx},${ry} 0 1,0 ${ecx+rx},${ecy}A${rx},${ry} 0 1,0 ${ecx-rx},${ecy}`;
+                    break;
+                case 'polygon':
+                case 'polyline':
+                    const points = shape.getAttribute('points').trim().split(/\s+|,/);
+                    path = 'M' + points.join('L') + (type === 'polygon' ? 'Z' : '');
+                    break;
+            }
+
+            return path;
+        }
 
         function centerAndScaleShape() {
             const bbox = originalShape.bbox();
@@ -102,8 +152,29 @@
                         );
                         currentPoint = {x: segment[3], y: segment[4]};
                         break;
+                    case 'A':
+                        // Approximate arc with multiple points
+                        const arcPoints = approximateArc(currentPoint, segment.slice(1));
+                        pathPoints.push(...arcPoints);
+                        currentPoint = arcPoints[arcPoints.length - 1];
+                        break;
                 }
             }
+        }
+
+        function approximateArc(start, arcParams) {
+            // This is a simplified approximation. For better results, use a more sophisticated algorithm.
+            const [rx, ry, xAxisRotation, largeArcFlag, sweepFlag, x, y] = arcParams;
+            const points = [];
+            const steps = 10;
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const angle = t * Math.PI * 2;
+                const px = start.x + (x - start.x) * t;
+                const py = start.y + (y - start.y) * t;
+                points.push({x: px + Math.cos(angle) * rx, y: py + Math.sin(angle) * ry});
+            }
+            return points;
         }
 
         function updateShape() {
