@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG図形変形ツール（400px×400px版）- 頂点の丸み改善</title>
+    <title>SVG図形変形ツール（400px×400px版）- 元の形状を保持</title>
     <style>
         body { font-family: Arial, sans-serif; }
         #controls { margin-bottom: 20px; }
@@ -12,7 +12,7 @@
     </style>
 </head>
 <body>
-    <h1>SVG図形変形ツール（400px×400px版）- 頂点の丸み改善</h1>
+    <h1>SVG図形変形ツール（400px×400px版）- 元の形状を保持</h1>
     <div id="controls">
         <input type="file" id="svgFile" accept=".svg">
         <input type="range" id="vertexCount" min="3" max="20" value="4">
@@ -27,7 +27,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/3.1.1/svg.min.js"></script>
     <script>
         const svgContainer = SVG('#svgContainer');
-        let shape;
+        let originalShape;
+        let transformedShape;
 
         document.getElementById('svgFile').addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -41,9 +42,12 @@
                 if (viewBox) {
                     svgContainer.attr('viewBox', viewBox);
                 }
-                shape = SVG(svgElement.querySelector('path'));
-                svgContainer.add(shape);
+                originalShape = SVG(svgElement.querySelector('path'));
+                svgContainer.add(originalShape);
+                transformedShape = originalShape.clone();
+                svgContainer.add(transformedShape);
                 centerAndScaleShape();
+                analyzeShape();
                 updateShape();
             };
             reader.readAsText(file);
@@ -59,56 +63,92 @@
         });
 
         function centerAndScaleShape() {
-            const bbox = shape.bbox();
+            const bbox = originalShape.bbox();
             const scale = Math.min(380 / bbox.width, 380 / bbox.height);
-            shape.transform({
+            originalShape.transform({
                 translateX: (400 - bbox.width * scale) / 2 - bbox.x * scale,
                 translateY: (400 - bbox.height * scale) / 2 - bbox.y * scale,
                 scale: scale
             });
+            transformedShape.transform(originalShape.transform());
+        }
+
+        let vertices = [];
+
+        function analyzeShape() {
+            const pathData = originalShape.array();
+            vertices = [];
+            for (let i = 0; i < pathData.length; i++) {
+                const segment = pathData[i];
+                if (segment[0] === 'M' || segment[0] === 'L') {
+                    vertices.push({x: segment[1], y: segment[2]});
+                } else if (segment[0] === 'C') {
+                    vertices.push({x: segment[5], y: segment[6]});
+                }
+            }
         }
 
         function updateShape() {
-            if (!shape) return;
+            if (!originalShape) return;
 
             const vertexCount = parseInt(document.getElementById('vertexCount').value);
             const roundness = parseInt(document.getElementById('roundness').value) / 100;
             const rotation = parseInt(document.getElementById('rotation').value);
 
-            const bbox = shape.bbox();
-            const radius = Math.min(bbox.width, bbox.height) / 2;
-            const center = { x: bbox.cx, y: bbox.cy };
-            let path = '';
+            let newPath = '';
+            const center = originalShape.bbox().center;
 
             for (let i = 0; i < vertexCount; i++) {
                 const angle = (i / vertexCount) * Math.PI * 2 + (rotation * Math.PI / 180);
                 const nextAngle = ((i + 1) / vertexCount) * Math.PI * 2 + (rotation * Math.PI / 180);
                 
-                const x = center.x + radius * Math.cos(angle);
-                const y = center.y + radius * Math.sin(angle);
-                const nextX = center.x + radius * Math.cos(nextAngle);
-                const nextY = center.y + radius * Math.sin(nextAngle);
+                const vertex = getInterpolatedVertex(angle);
+                const nextVertex = getInterpolatedVertex(nextAngle);
 
                 if (i === 0) {
-                    path += `M${x},${y}`;
+                    newPath += `M${vertex.x},${vertex.y}`;
                 }
 
-                // Calculate control points for quadratic Bezier curve
-                const midX = (x + nextX) / 2;
-                const midY = (y + nextY) / 2;
-                const dx = nextX - x;
-                const dy = nextY - y;
+                const midX = (vertex.x + nextVertex.x) / 2;
+                const midY = (vertex.y + nextVertex.y) / 2;
+                const dx = nextVertex.x - vertex.x;
+                const dy = nextVertex.y - vertex.y;
                 const normX = -dy;
                 const normY = dx;
                 const dist = Math.sqrt(normX * normX + normY * normY);
-                const controlX = midX + (normX / dist) * radius * roundness;
-                const controlY = midY + (normY / dist) * radius * roundness;
+                const controlX = midX + (normX / dist) * dist * roundness / 2;
+                const controlY = midY + (normY / dist) * dist * roundness / 2;
 
-                path += `Q${controlX},${controlY} ${nextX},${nextY}`;
+                newPath += `Q${controlX},${controlY} ${nextVertex.x},${nextVertex.y}`;
             }
 
-            path += 'Z';
-            shape.plot(path);
+            newPath += 'Z';
+            transformedShape.plot(newPath);
+        }
+
+        function getInterpolatedVertex(angle) {
+            const center = originalShape.bbox().center;
+            let minDist = Infinity;
+            let closestVertex = null;
+
+            for (let vertex of vertices) {
+                const dx = vertex.x - center.x;
+                const dy = vertex.y - center.y;
+                const vertexAngle = Math.atan2(dy, dx);
+                const angleDiff = Math.abs(normalizeAngle(vertexAngle - angle));
+                if (angleDiff < minDist) {
+                    minDist = angleDiff;
+                    closestVertex = vertex;
+                }
+            }
+
+            return closestVertex;
+        }
+
+        function normalizeAngle(angle) {
+            while (angle > Math.PI) angle -= 2 * Math.PI;
+            while (angle < -Math.PI) angle += 2 * Math.PI;
+            return angle;
         }
     </script>
 </body>
