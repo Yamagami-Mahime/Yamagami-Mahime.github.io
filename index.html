@@ -1,102 +1,135 @@
 import React, { useState, useRef } from 'react';
+import { Slider } from '@mui/material';
+import { toPng } from 'html-to-image';
+import { saveAs } from 'file-saver';
 
-const ImageTransformer = () => {
-  const [image, setImage] = useState(null); // 画像データ
-  const [vertices, setVertices] = useState(5); // 変形用の頂点数
-  const [innerRadius, setInnerRadius] = useState(0.5); // 内側の半径
-  const canvasRef = useRef(null); // Canvas参照用
+const ShapeDeformer = () => {
+  const [selectedShape, setSelectedShape] = useState('blob'); // Default shape
+  const [vertices, setVertices] = useState(10);
+  const [cornerRadius, setCornerRadius] = useState(15);
+  const [scale, setScale] = useState(50);
+  const [angle, setAngle] = useState(90);
+  const [verticalScale, setVerticalScale] = useState(50);
+  const shapeRef = useRef(null);
 
-  // 画像ファイルを読み込む
-  const handleImageUpload = (event) => {
-    const file = event.target.files[0];
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        setImage(img);
-        drawImage(img);
-      };
-      img.src = reader.result;
-    };
-    if (file) {
-      reader.readAsDataURL(file);
+  const shapes = [
+    { id: 'blob', label: 'Blob' },
+    { id: 'star', label: 'Star' },
+    { id: 'ellipse', label: 'Ellipse' },
+    { id: 'triangle', label: 'Triangle' },
+    { id: 'diamond', label: 'Diamond' },
+    { id: 'wave', label: 'Wave' },
+  ];
+
+  // Function to generate the SVG path based on selected shape and sliders
+  const generateShapePath = () => {
+    switch (selectedShape) {
+      case 'blob':
+        return `M50,100 C50,${cornerRadius},100,${cornerRadius},100,50 C100,${cornerRadius},${cornerRadius},${cornerRadius},${cornerRadius},50 Z`;
+      case 'star':
+        return `M50,15 L65,35 L85,35 L70,50 L75,70 L50,60 L25,70 L30,50 L15,35 L35,35 Z`;
+      case 'ellipse':
+        return `M50,${100 - scale} A${50},${25 + verticalScale} 0 1,1 50,${scale}`;
+      case 'triangle':
+        return `M50,15 L85,85 L15,85 Z`;
+      case 'diamond':
+        return `M50,15 L85,50 L50,85 L15,50 Z`;
+      case 'wave':
+        return `M0,50 Q20,${30 + scale},40,50 T80,50 T120,50 T160,50`;
+      default:
+        return '';
     }
   };
 
-  // 画像をCanvasに描画する
-  const drawImage = (img) => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    canvas.width = img.width;
-    canvas.height = img.height;
+  const handleSavePng = () => {
+    if (shapeRef.current === null) return;
 
-    // 画像をCanvasに描画
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
-
-    // ここで変形ロジックを追加
-    applyTransformation(ctx);
-  };
-
-  // 画像の変形処理
-  const applyTransformation = (ctx) => {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-    const centerX = width / 2;
-    const centerY = height / 2;
-
-    // 例: 変形する頂点数に基づいた処理（ここでは星形のマスク）
-    ctx.beginPath();
-    for (let i = 0; i < vertices * 2; i++) {
-      const angle = (i / vertices) * Math.PI;
-      const radius = i % 2 === 0 ? width * innerRadius : height / 2;
-      const x = centerX + radius * Math.cos(angle);
-      const y = centerY + radius * Math.sin(angle);
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-    }
-    ctx.closePath();
-    ctx.clip(); // 星形マスクを適用
-    ctx.drawImage(image, 0, 0, width, height); // マスクされた領域に画像を再描画
+    toPng(shapeRef.current)
+      .then((dataUrl) => {
+        saveAs(dataUrl, 'shape.png');
+      })
+      .catch((err) => {
+        console.error('Error saving image', err);
+      });
   };
 
   return (
-    <div className="p-4 max-w-md mx-auto">
-      <div className="mb-4">
-        <input type="file" accept="image/*" onChange={handleImageUpload} />
+    <div className="shape-deformer">
+      {/* Shape Selection */}
+      <div className="shape-selector">
+        {shapes.map((shape) => (
+          <button
+            key={shape.id}
+            className={`shape-button ${selectedShape === shape.id ? 'active' : ''}`}
+            onClick={() => setSelectedShape(shape.id)}
+          >
+            {shape.label}
+          </button>
+        ))}
       </div>
-      <div className="mb-4">
-        <canvas ref={canvasRef} style={{ width: '100%', height: 'auto' }} />
+
+      {/* Shape Display */}
+      <div className="shape-display">
+        <svg ref={shapeRef} width="200" height="200" viewBox="0 0 100 100">
+          <path d={generateShapePath()} fill="none" stroke="black" strokeWidth="2" />
+        </svg>
       </div>
-      <div className="w-full space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">頂点の数: {vertices}</label>
-          <input
-            type="range"
+
+      {/* Sliders for deformation */}
+      <div className="controls">
+        <div className="slider-control">
+          <label>頂点の数: {vertices}</label>
+          <Slider
             value={vertices}
-            onChange={(e) => setVertices(Number(e.target.value))}
-            max={12}
+            onChange={(e, val) => setVertices(val)}
             min={3}
-            step={1}
+            max={30}
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">内側の半径: {innerRadius.toFixed(2)}</label>
-          <input
-            type="range"
-            value={innerRadius}
-            onChange={(e) => setInnerRadius(Number(e.target.value))}
-            max={1}
-            min={0.1}
-            step={0.01}
+        <div className="slider-control">
+          <label>角の半径: {cornerRadius}px</label>
+          <Slider
+            value={cornerRadius}
+            onChange={(e, val) => setCornerRadius(val)}
+            min={0}
+            max={50}
+          />
+        </div>
+        <div className="slider-control">
+          <label>オブジェクト比: {scale}%</label>
+          <Slider
+            value={scale}
+            onChange={(e, val) => setScale(val)}
+            min={0}
+            max={100}
+          />
+        </div>
+        <div className="slider-control">
+          <label>角度: {angle}°</label>
+          <Slider
+            value={angle}
+            onChange={(e, val) => setAngle(val)}
+            min={0}
+            max={180}
+          />
+        </div>
+        <div className="slider-control">
+          <label>縦横比: {verticalScale}%</label>
+          <Slider
+            value={verticalScale}
+            onChange={(e, val) => setVerticalScale(val)}
+            min={0}
+            max={100}
           />
         </div>
       </div>
+
+      {/* Save as PNG button */}
+      <button onClick={handleSavePng} className="save-button">
+        PNGで保存
+      </button>
     </div>
   );
 };
 
-export default ImageTransformer;
+export default ShapeDeformer;
