@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG図形変形ツール</title>
+    <title>SVG図形変形ツール（400px×400px版）</title>
     <style>
         body { font-family: Arial, sans-serif; }
         #controls { margin-bottom: 20px; }
         input { margin-right: 10px; }
+        #svgContainer { border: 2px solid black; }
     </style>
 </head>
 <body>
-    <h1>SVG図形変形ツール</h1>
+    <h1>SVG図形変形ツール（400px×400px版）</h1>
     <div id="controls">
         <input type="file" id="svgFile" accept=".svg">
         <input type="range" id="vertexCount" min="3" max="20" value="4">
@@ -21,7 +22,7 @@
         <input type="range" id="rotation" min="0" max="360" value="0">
         <label for="rotation">回転: <span id="rotationValue">0</span>°</label>
     </div>
-    <svg id="svgContainer" width="500" height="500"></svg>
+    <svg id="svgContainer" width="400" height="400"></svg>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/3.1.1/svg.min.js"></script>
     <script>
@@ -33,8 +34,16 @@
             const reader = new FileReader();
             reader.onload = (event) => {
                 svgContainer.clear();
-                svgContainer.svg(event.target.result);
-                shape = svgContainer.findOne('path');
+                const tempContainer = document.createElement('div');
+                tempContainer.innerHTML = event.target.result;
+                const svgElement = tempContainer.querySelector('svg');
+                const viewBox = svgElement.getAttribute('viewBox');
+                if (viewBox) {
+                    svgContainer.attr('viewBox', viewBox);
+                }
+                shape = SVG(svgElement.querySelector('path'));
+                svgContainer.add(shape);
+                centerAndScaleShape();
                 updateShape();
             };
             reader.readAsText(file);
@@ -49,6 +58,16 @@
             });
         });
 
+        function centerAndScaleShape() {
+            const bbox = shape.bbox();
+            const scale = Math.min(380 / bbox.width, 380 / bbox.height);
+            shape.transform({
+                translateX: (400 - bbox.width * scale) / 2 - bbox.x * scale,
+                translateY: (400 - bbox.height * scale) / 2 - bbox.y * scale,
+                scale: scale
+            });
+        }
+
         function updateShape() {
             if (!shape) return;
 
@@ -56,8 +75,9 @@
             const roundness = parseInt(document.getElementById('roundness').value) / 100;
             const rotation = parseInt(document.getElementById('rotation').value);
 
-            const radius = 200;
-            const center = { x: 250, y: 250 };
+            const bbox = shape.bbox();
+            const radius = Math.min(bbox.width, bbox.height) / 2;
+            const center = { x: bbox.cx, y: bbox.cy };
             let path = '';
 
             for (let i = 0; i < vertexCount; i++) {
