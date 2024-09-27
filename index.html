@@ -1,126 +1,100 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Slider } from '@/components/ui/slider';
-import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
+import React, { useState, useRef } from 'react';
 
 const ImageTransformer = () => {
-  const [imageSrc, setImageSrc] = useState(null);
-  const [scale, setScale] = useState(1);
-  const [rotation, setRotation] = useState(0);
-  const [aspectRatio, setAspectRatio] = useState(1);
-  const [cornerRadius, setCornerRadius] = useState(0);
-  const canvasRef = useRef(null);
+  const [image, setImage] = useState(null); // 画像データ
+  const [vertices, setVertices] = useState(5); // 変形用の頂点数
+  const [innerRadius, setInnerRadius] = useState(0.5); // 内側の半径
+  const canvasRef = useRef(null); // Canvas参照用
 
-  // 画像を読み込む関数
+  // 画像ファイルを読み込む
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        setImage(img);
+        drawImage(img);
+      };
+      img.src = reader.result;
+    };
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => setImageSrc(e.target.result);
       reader.readAsDataURL(file);
     }
   };
 
-  // Canvasに画像を描画し、変形する
-  useEffect(() => {
-    if (imageSrc && canvasRef.current) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      const img = new Image();
-      img.src = imageSrc;
-      img.onload = () => {
-        // 画面をクリア
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // 回転とスケールを適用
-        ctx.save();
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate((rotation * Math.PI) / 180);
-        ctx.scale(scale, scale * aspectRatio);
-        
-        // 角の丸みのためにパスを作成
-        const width = img.width * scale;
-        const height = img.height * scale * aspectRatio;
-        ctx.beginPath();
-        ctx.moveTo(-width / 2 + cornerRadius, -height / 2);
-        ctx.lineTo(width / 2 - cornerRadius, -height / 2);
-        ctx.quadraticCurveTo(width / 2, -height / 2, width / 2, -height / 2 + cornerRadius);
-        ctx.lineTo(width / 2, height / 2 - cornerRadius);
-        ctx.quadraticCurveTo(width / 2, height / 2, width / 2 - cornerRadius, height / 2);
-        ctx.lineTo(-width / 2 + cornerRadius, height / 2);
-        ctx.quadraticCurveTo(-width / 2, height / 2, -width / 2, height / 2 - cornerRadius);
-        ctx.lineTo(-width / 2, -height / 2 + cornerRadius);
-        ctx.quadraticCurveTo(-width / 2, -height / 2, -width / 2 + cornerRadius, -height / 2);
-        ctx.clip();
-
-        // 画像を描画
-        ctx.drawImage(img, -width / 2, -height / 2, width, height);
-        ctx.restore();
-      };
-    }
-  }, [imageSrc, scale, rotation, aspectRatio, cornerRadius]);
-
-  // 画像をダウンロードする関数
-  const handleDownload = () => {
+  // 画像をCanvasに描画する
+  const drawImage = (img) => {
     const canvas = canvasRef.current;
-    const link = document.createElement('a');
-    link.href = canvas.toDataURL();
-    link.download = 'transformed_image.png';
-    link.click();
+    const ctx = canvas.getContext('2d');
+    canvas.width = img.width;
+    canvas.height = img.height;
+
+    // 画像をCanvasに描画
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+
+    // ここで変形ロジックを追加
+    applyTransformation(ctx);
+  };
+
+  // 画像の変形処理
+  const applyTransformation = (ctx) => {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    // 例: 変形する頂点数に基づいた処理（ここでは星形のマスク）
+    ctx.beginPath();
+    for (let i = 0; i < vertices * 2; i++) {
+      const angle = (i / vertices) * Math.PI;
+      const radius = i % 2 === 0 ? width * innerRadius : height / 2;
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.closePath();
+    ctx.clip(); // 星形マスクを適用
+    ctx.drawImage(image, 0, 0, width, height); // マスクされた領域に画像を再描画
   };
 
   return (
-    <div className="p-4 max-w-md mx-auto flex flex-col items-center">
-      <input type="file" accept="image/*" onChange={handleImageUpload} className="mb-4" />
-      <canvas ref={canvasRef} width={400} height={400} className="border" />
-
-      {imageSrc && (
-        <div className="w-full space-y-4 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">拡大縮小率: {scale.toFixed(2)}</label>
-            <Slider
-              value={[scale]}
-              onValueChange={(value) => setScale(value[0])}
-              max={2}
-              min={0.5}
-              step={0.01}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">回転角度: {rotation}°</label>
-            <Slider
-              value={[rotation]}
-              onValueChange={(value) => setRotation(value[0])}
-              max={360}
-              min={0}
-              step={1}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">縦横比: {aspectRatio.toFixed(2)}</label>
-            <Slider
-              value={[aspectRatio]}
-              onValueChange={(value) => setAspectRatio(value[0])}
-              max={2}
-              min={0.5}
-              step={0.01}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">角の丸み: {cornerRadius.toFixed(2)}</label>
-            <Slider
-              value={[cornerRadius]}
-              onValueChange={(value) => setCornerRadius(value[0])}
-              max={50}
-              min={0}
-              step={1}
-            />
-          </div>
-          <Button onClick={handleDownload} className="w-full flex items-center justify-center">
-            <Download className="mr-2 h-4 w-4" /> 画像をダウンロード
-          </Button>
+    <div className="p-4 max-w-md mx-auto">
+      <div className="mb-4">
+        <input type="file" accept="image/*" onChange={handleImageUpload} />
+      </div>
+      <div className="mb-4">
+        <canvas ref={canvasRef} style={{ width: '100%', height: 'auto' }} />
+      </div>
+      <div className="w-full space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">頂点の数: {vertices}</label>
+          <input
+            type="range"
+            value={vertices}
+            onChange={(e) => setVertices(Number(e.target.value))}
+            max={12}
+            min={3}
+            step={1}
+          />
         </div>
-      )}
+        <div>
+          <label className="block text-sm font-medium text-gray-700">内側の半径: {innerRadius.toFixed(2)}</label>
+          <input
+            type="range"
+            value={innerRadius}
+            onChange={(e) => setInnerRadius(Number(e.target.value))}
+            max={1}
+            min={0.1}
+            step={0.01}
+          />
+        </div>
+      </div>
     </div>
   );
 };
