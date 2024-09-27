@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG図形変形ツール（400px×400px版）</title>
+    <title>SVG図形変形ツール（400px×400px版）- 頂点の丸み改善</title>
     <style>
         body { font-family: Arial, sans-serif; }
         #controls { margin-bottom: 20px; }
@@ -12,7 +12,7 @@
     </style>
 </head>
 <body>
-    <h1>SVG図形変形ツール（400px×400px版）</h1>
+    <h1>SVG図形変形ツール（400px×400px版）- 頂点の丸み改善</h1>
     <div id="controls">
         <input type="file" id="svgFile" accept=".svg">
         <input type="range" id="vertexCount" min="3" max="20" value="4">
@@ -82,24 +82,29 @@
 
             for (let i = 0; i < vertexCount; i++) {
                 const angle = (i / vertexCount) * Math.PI * 2 + (rotation * Math.PI / 180);
+                const nextAngle = ((i + 1) / vertexCount) * Math.PI * 2 + (rotation * Math.PI / 180);
+                
                 const x = center.x + radius * Math.cos(angle);
                 const y = center.y + radius * Math.sin(angle);
+                const nextX = center.x + radius * Math.cos(nextAngle);
+                const nextY = center.y + radius * Math.sin(nextAngle);
 
                 if (i === 0) {
                     path += `M${x},${y}`;
-                } else {
-                    const prevAngle = ((i - 1) / vertexCount) * Math.PI * 2 + (rotation * Math.PI / 180);
-                    const prevX = center.x + radius * Math.cos(prevAngle);
-                    const prevY = center.y + radius * Math.sin(prevAngle);
-
-                    const midX = (prevX + x) / 2;
-                    const midY = (prevY + y) / 2;
-
-                    const controlX = midX + (midY - center.y) * roundness;
-                    const controlY = midY - (midX - center.x) * roundness;
-
-                    path += `Q${controlX},${controlY} ${x},${y}`;
                 }
+
+                // Calculate control points for quadratic Bezier curve
+                const midX = (x + nextX) / 2;
+                const midY = (y + nextY) / 2;
+                const dx = nextX - x;
+                const dy = nextY - y;
+                const normX = -dy;
+                const normY = dx;
+                const dist = Math.sqrt(normX * normX + normY * normY);
+                const controlX = midX + (normX / dist) * radius * roundness;
+                const controlY = midY + (normY / dist) * radius * roundness;
+
+                path += `Q${controlX},${controlY} ${nextX},${nextY}`;
             }
 
             path += 'Z';
