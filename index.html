@@ -108,7 +108,7 @@
 
   <script>
     let selectedShape = 'blob';
-    
+
     // Function to select a shape
     function selectShape(shape) {
       selectedShape = shape;
@@ -122,15 +122,15 @@
       const vertices = document.getElementById('vertices-slider').value;
       const cornerRadius = document.getElementById('corner-radius-slider').value;
       const scale = document.getElementById('scale-slider').value;
-      const angle = document.getElementById('angle-slider').value;
-      const verticalScale = document.getElementById('vertical-scale-slider').value;
+      const angle = document.getElementById('angle-slider').value * Math.PI / 180; // Convert to radians
+      const verticalScale = document.getElementById('vertical-scale-slider').value / 100;
 
       // Update labels
       document.getElementById('vertices-label').textContent = vertices;
       document.getElementById('corner-radius-label').textContent = cornerRadius;
       document.getElementById('scale-label').textContent = scale;
-      document.getElementById('angle-label').textContent = angle;
-      document.getElementById('vertical-scale-label').textContent = verticalScale;
+      document.getElementById('angle-label').textContent = (angle * 180 / Math.PI).toFixed(0); // Convert back to degrees
+      document.getElementById('vertical-scale-label').textContent = verticalScale * 100;
 
       // Get the canvas context
       const canvas = document.getElementById('shapeCanvas');
@@ -141,22 +141,22 @@
       ctx.beginPath();
       switch (selectedShape) {
         case 'blob':
-          ctx.arc(100, 100, 80, 0, 2 * Math.PI); // Simple circle as an example
+          drawBlob(ctx, 100, 100, vertices, cornerRadius, scale, verticalScale);
           break;
         case 'star':
-          drawStar(ctx, 100, 100, vertices, 80, cornerRadius);
+          drawStar(ctx, 100, 100, vertices, 80 * scale, cornerRadius);
           break;
         case 'ellipse':
-          ctx.ellipse(100, 100, 80, 40, angle * Math.PI / 180, 0, 2 * Math.PI);
+          drawEllipse(ctx, 100, 100, 80 * scale, 40 * verticalScale, angle);
           break;
         case 'triangle':
-          drawPolygon(ctx, 100, 100, 3, 80);
+          drawPolygon(ctx, 100, 100, 3, 80 * scale);
           break;
         case 'diamond':
-          drawPolygon(ctx, 100, 100, 4, 80);
+          drawPolygon(ctx, 100, 100, 4, 80 * scale);
           break;
         case 'wave':
-          drawWave(ctx);
+          drawWave(ctx, 100, 100, 80 * scale);
           break;
         default:
           break;
@@ -165,6 +165,18 @@
     }
 
     // Helper functions to draw shapes
+    function drawBlob(ctx, cx, cy, vertices, cornerRadius, scale, verticalScale) {
+      const step = Math.PI * 2 / vertices;
+      ctx.moveTo(cx + (scale * Math.cos(0) * 80), cy + (verticalScale * scale * Math.sin(0) * 80));
+      for (let i = 0; i < vertices; i++) {
+        const angle = i * step;
+        const x = cx + (scale * Math.cos(angle) * (80 + cornerRadius * Math.sin(angle * 3)));
+        const y = cy + (verticalScale * scale * Math.sin(angle) * (80 + cornerRadius * Math.cos(angle * 3)));
+        ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+    }
+
     function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
       let rot = Math.PI / 2 * 3;
       let x = cx;
@@ -186,21 +198,33 @@
       ctx.lineTo(cx, cy - outerRadius);
     }
 
+    function drawEllipse(ctx, cx, cy, radiusX, radiusY, angle) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      ctx.scale(radiusX, radiusY);
+      ctx.arc(0, 0, 1, 0, 2 * Math.PI);
+      ctx.restore();
+    }
+
     function drawPolygon(ctx, x, y, sides, radius) {
       const angle = Math.PI * 2 / sides;
       ctx.moveTo(x + radius * Math.cos(0), y + radius * Math.sin(0));
       for (let i = 1; i <= sides; i++) {
         ctx.lineTo(x + radius * Math.cos(i * angle), y + radius * Math.sin(i * angle));
       }
+      ctx.closePath();
     }
 
-    function drawWave(ctx) {
-      ctx.moveTo(0, 100);
-      ctx.quadraticCurveTo(50, 50, 100, 100);
-      ctx.quadraticCurveTo(150, 150, 200, 100);
+    function drawWave(ctx, cx, cy, radius) {
+      ctx.moveTo(cx - radius, cy);
+      for (let i = -radius; i <= radius; i++) {
+        const y = cy + Math.sin(i * 0.1) * 20;
+        ctx.lineTo(cx + i, y);
+      }
     }
 
-    // Function to save the shape as PNG
+    // Save as PNG function
     function savePng() {
       const canvas = document.getElementById('shapeCanvas');
       const link = document.createElement('a');
@@ -209,8 +233,9 @@
       link.click();
     }
 
-    // Initialize the shape on load
-    window.onload = updateShape;
+    // Initial shape
+    updateShape();
   </script>
+
 </body>
 </html>
