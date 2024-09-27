@@ -3,107 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG編集ツール</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/3.1.1/svg.min.js"></script>
+    <title>画像変形ツール</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.1/fabric.min.js"></script>
     <style>
-        #svg-container { width: 500px; height: 500px; border: 1px solid black; }
+        #canvas-container { width: 500px; height: 500px; border: 1px solid black; }
         .slider-container { margin: 10px 0; }
     </style>
 </head>
 <body>
-    <input type="file" id="file-input" accept=".svg">
-    <div id="svg-container"></div>
-    <div class="slider-container">
-        <label for="complexity">複雑性: </label>
-        <input type="range" id="complexity" min="0" max="100" value="50">
+    <input type="file" id="image-input" accept="image/*">
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
     </div>
     <div class="slider-container">
-        <label for="linearity">直線性: </label>
-        <input type="range" id="linearity" min="0" max="100" value="50">
+        <label for="scale">拡大縮小: </label>
+        <input type="range" id="scale" min="50" max="150" value="100">
     </div>
     <div class="slider-container">
-        <label for="amplitude">振幅: </label>
-        <input type="range" id="amplitude" min="0" max="100" value="50">
+        <label for="rotation">回転: </label>
+        <input type="range" id="rotation" min="0" max="360" value="0">
     </div>
     <div class="slider-container">
-        <label for="symmetry">対称性: </label>
-        <input type="range" id="symmetry" min="0" max="100" value="50">
+        <label for="skew">傾斜: </label>
+        <input type="range" id="skew" min="-45" max="45" value="0">
+    </div>
+    <div class="slider-container">
+        <label for="distortion">歪み: </label>
+        <input type="range" id="distortion" min="0" max="100" value="0">
     </div>
     <button id="save-btn">保存</button>
 
     <script>
-        let svgElement;
-        let originalPath;
+        let canvas = new fabric.Canvas('canvas', { width: 500, height: 500 });
+        let image;
 
-        document.getElementById('file-input').addEventListener('change', handleFileSelect);
-        document.getElementById('complexity').addEventListener('input', updateSVG);
-        document.getElementById('linearity').addEventListener('input', updateSVG);
-        document.getElementById('amplitude').addEventListener('input', updateSVG);
-        document.getElementById('symmetry').addEventListener('input', updateSVG);
-        document.getElementById('save-btn').addEventListener('click', saveSVG);
+        document.getElementById('image-input').addEventListener('change', handleImageSelect);
+        document.getElementById('scale').addEventListener('input', updateImage);
+        document.getElementById('rotation').addEventListener('input', updateImage);
+        document.getElementById('skew').addEventListener('input', updateImage);
+        document.getElementById('distortion').addEventListener('input', updateImage);
+        document.getElementById('save-btn').addEventListener('click', saveImage);
 
-        function handleFileSelect(event) {
+        function handleImageSelect(event) {
             const file = event.target.files[0];
             const reader = new FileReader();
 
             reader.onload = function(e) {
-                const svgContent = e.target.result;
-                const parser = new DOMParser();
-                const svgDoc = parser.parseFromString(svgContent, "image/svg+xml");
-                const path = svgDoc.querySelector('path');
-
-                if (path) {
-                    originalPath = path.getAttribute('d');
-                    svgElement = SVG().addTo('#svg-container').size(500, 500);
-                    svgElement.path(originalPath).fill('none').stroke({ color: '#000', width: 2 });
-                    updateSVG();
-                } else {
-                    alert('SVGファイルにパスが見つかりません。');
-                }
+                fabric.Image.fromURL(e.target.result, function(img) {
+                    image = img;
+                    canvas.clear();
+                    canvas.add(image);
+                    image.center();
+                    canvas.renderAll();
+                });
             };
 
-            reader.readAsText(file);
+            reader.readAsDataURL(file);
         }
 
-        function updateSVG() {
-            if (!svgElement || !originalPath) return;
+        function updateImage() {
+            if (!image) return;
 
-            const complexity = document.getElementById('complexity').value;
-            const linearity = document.getElementById('linearity').value;
-            const amplitude = document.getElementById('amplitude').value;
-            const symmetry = document.getElementById('symmetry').value;
+            const scale = document.getElementById('scale').value / 100;
+            const rotation = document.getElementById('rotation').value;
+            const skew = document.getElementById('skew').value;
+            const distortion = document.getElementById('distortion').value / 100;
 
-            const modifiedPath = modifyPath(originalPath, complexity, linearity, amplitude, symmetry);
-            svgElement.clear();
-            svgElement.path(modifiedPath).fill('none').stroke({ color: '#000', width: 2 });
-        }
-
-        function modifyPath(path, complexity, linearity, amplitude, symmetry) {
-            const parsedPath = SVG.parsePathString(path);
-            const modifiedPath = parsedPath.map(segment => {
-                if (segment[0] === 'C' || segment[0] === 'c') {
-                    segment[1] += (Math.random() - 0.5) * (complexity / 10);
-                    segment[2] += (Math.random() - 0.5) * (complexity / 10);
-                    segment[3] += (Math.random() - 0.5) * (complexity / 10);
-                    segment[4] += (Math.random() - 0.5) * (complexity / 10);
-                    segment[5] += (Math.random() - 0.5) * (amplitude / 10);
-                    segment[6] += (Math.random() - 0.5) * (amplitude / 10);
-                }
-                return segment;
+            image.set({
+                scaleX: scale,
+                scaleY: scale,
+                angle: rotation,
+                skewX: skew,
+                skewY: skew
             });
 
-            return SVG.pathToString(modifiedPath);
+            // 歪み効果の適用
+            image.filters = [new fabric.Image.filters.Convolute({
+                matrix: [
+                    distortion, 0, 0,
+                    0, 1, 0,
+                    0, 0, 1 - distortion
+                ]
+            })];
+            image.applyFilters();
+
+            canvas.renderAll();
         }
 
-        function saveSVG() {
-            if (!svgElement) return;
+        function saveImage() {
+            const dataURL = canvas.toDataURL({
+                format: 'png',
+                quality: 1
+            });
 
-            const svgData = svgElement.svg();
-            const blob = new Blob([svgData], {type: 'image/svg+xml'});
-            const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.href = url;
-            link.download = 'modified_svg.svg';
+            link.href = dataURL;
+            link.download = 'modified_image.png';
             link.click();
         }
     </script>
