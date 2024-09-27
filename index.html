@@ -80,19 +80,40 @@
             }
         }
 
-        // Create a similar shape (simple modification for demonstration)
+        // Create a similar shape with random modifications
         function createSimilarShape(originalSvg) {
-            // Simple random modifications to width and height attributes
             const parser = new DOMParser();
             const svgDoc = parser.parseFromString(originalSvg, "image/svg+xml");
             const svgElement = svgDoc.documentElement;
 
-            // Randomize the width and height
-            const randomScale = Math.random() * 0.5 + 0.75; // Scale between 75% to 125%
+            // Randomize scale (75% to 125%)
+            const randomScale = Math.random() * 0.5 + 0.75;
             svgElement.setAttribute('width', `${200 * randomScale}`);
             svgElement.setAttribute('height', `${200 * randomScale}`);
 
+            // Randomize stroke width (1 to 5)
+            const randomStrokeWidth = Math.random() * 4 + 1;
+            svgElement.setAttribute('stroke-width', randomStrokeWidth);
+
+            // Randomize stroke color
+            const randomStrokeColor = getRandomColor();
+            svgElement.setAttribute('stroke', randomStrokeColor);
+
+            // Randomize fill color
+            const randomFillColor = getRandomColor();
+            svgElement.setAttribute('fill', randomFillColor);
+
             return svgElement.outerHTML;
+        }
+
+        // Function to get a random color
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
         }
     </script>
 
