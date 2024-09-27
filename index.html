@@ -3,92 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG形状編集ツール</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/3.1.2/svg.min.js"></script>
+    <title>ランダム図形変形ツール</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
     <style>
-        #svg-container { width: 500px; height: 500px; border: 1px solid black; }
-        .control-panel { margin-top: 20px; }
+        body { display: flex; flex-direction: column; align-items: center; }
+        #controls { margin-top: 20px; }
         .slider { width: 200px; }
     </style>
 </head>
 <body>
-    <input type="file" id="file-input" accept=".svg">
-    <div id="svg-container"></div>
-    <div class="control-panel">
+    <div id="shape-container"></div>
+    <div id="controls">
+        <button id="generate-btn">新しい図形を生成</button>
         <div>
-            <label for="points">頂点数: </label>
-            <input type="range" id="points" class="slider" min="3" max="20" value="5">
+            <label for="scale">拡大縮小:</label>
+            <input type="range" id="scale" class="slider" min="0.1" max="2" step="0.1" value="1">
         </div>
         <div>
-            <label for="radius">半径: </label>
-            <input type="range" id="radius" class="slider" min="10" max="200" value="100">
-        </div>
-        <div>
-            <label for="rotation">回転: </label>
+            <label for="rotation">回転:</label>
             <input type="range" id="rotation" class="slider" min="0" max="360" value="0">
         </div>
         <div>
-            <label for="distortion">歪み: </label>
-            <input type="range" id="distortion" class="slider" min="0" max="100" value="0">
+            <label for="complexity">複雑さ:</label>
+            <input type="range" id="complexity" class="slider" min="3" max="20" value="5">
+        </div>
+        <div>
+            <label for="distortion">歪み:</label>
+            <input type="range" id="distortion" class="slider" min="0" max="1" step="0.1" value="0">
         </div>
     </div>
-    <button id="save-btn">SVGを保存</button>
+    <button id="save-btn">PNG保存</button>
 
     <script>
-        let draw, shape;
-        const container = document.getElementById('svg-container');
+        let shapes = [];
+        let selectedShape;
+        let canvas;
 
-        document.getElementById('file-input').addEventListener('change', loadSVG);
-        document.getElementById('points').addEventListener('input', updateShape);
-        document.getElementById('radius').addEventListener('input', updateShape);
-        document.getElementById('rotation').addEventListener('input', updateShape);
-        document.getElementById('distortion').addEventListener('input', updateShape);
-        document.getElementById('save-btn').addEventListener('click', saveSVG);
-
-        function loadSVG(event) {
-            const file = event.target.files[0];
-            const reader = new FileReader();
-
-            reader.onload = function(e) {
-                container.innerHTML = e.target.result;
-                const svg = container.querySelector('svg');
-                draw = SVG(svg);
-                shape = draw.select('path').first();
-                updateShape();
-            };
-
-            reader.readAsText(file);
+        function setup() {
+            canvas = createCanvas(600, 400);
+            canvas.parent('shape-container');
+            generateShapes();
+            noLoop();
         }
 
-        function updateShape() {
-            if (!shape) return;
-
-            const points = document.getElementById('points').value;
-            const radius = document.getElementById('radius').value;
-            const rotation = document.getElementById('rotation').value;
-            const distortion = document.getElementById('distortion').value / 100;
-
-            let d = '';
-            for (let i = 0; i < points; i++) {
-                const angle = (i / points) * Math.PI * 2 + rotation * Math.PI / 180;
-                const x = 250 + Math.cos(angle) * radius * (1 + Math.sin(i) * distortion);
-                const y = 250 + Math.sin(angle) * radius * (1 + Math.cos(i) * distortion);
-                d += (i === 0 ? 'M' : 'L') + x + ',' + y;
+        function draw() {
+            background(220);
+            if (selectedShape) {
+                drawShape(selectedShape);
+            } else {
+                for (let shape of shapes) {
+                    drawShape(shape);
+                }
             }
-            d += 'Z';
-
-            shape.plot(d);
         }
 
-        function saveSVG() {
-            const svgData = container.innerHTML;
-            const blob = new Blob([svgData], {type: 'image/svg+xml'});
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = 'modified_shape.svg';
-            link.click();
+        function generateShapes() {
+            shapes = [];
+            for (let i = 0; i < 30; i++) {
+                shapes.push({
+                    x: random(width),
+                    y: random(height),
+                    complexity: floor(random(3, 10)),
+                    radius: random(20, 50),
+                    rotation: random(360),
+                    distortion: random(0.5)
+                });
+            }
+            selectedShape = null;
+            redraw();
         }
+
+        function drawShape(shape) {
+            push();
+            translate(shape.x, shape.y);
+            rotate(radians(shape.rotation));
+            beginShape();
+            for (let i = 0; i < shape.complexity; i++) {
+                let angle = map(i, 0, shape.complexity, 0, TWO_PI);
+                let r = shape.radius * (1 + sin(angle * shape.complexity) * shape.distortion);
+                let x = r * cos(angle);
+                let y = r * sin(angle);
+                vertex(x, y);
+            }
+            endShape(CLOSE);
+            pop();
+        }
+
+        canvas.mousePressed = function() {
+            for (let shape of shapes) {
+                let d = dist(mouseX, mouseY, shape.x, shape.y);
+                if (d < shape.radius) {
+                    selectedShape = shape;
+                    updateControls();
+                    redraw();
+                    break;
+                }
+            }
+        }
+
+        function updateControls() {
+            document.getElementById('scale').value = 1;
+            document.getElementById('rotation').value = selectedShape.rotation;
+            document.getElementById('complexity').value = selectedShape.complexity;
+            document.getElementById('distortion').value = selectedShape.distortion;
+        }
+
+        document.getElementById('generate-btn').addEventListener('click', generateShapes);
+
+        document.getElementById('scale').addEventListener('input', function() {
+            if (selectedShape) {
+                selectedShape.radius = this.value * 50;
+                redraw();
+            }
+        });
+
+        document.getElementById('rotation').addEventListener('input', function() {
+            if (selectedShape) {
+                selectedShape.rotation = this.value;
+                redraw();
+            }
+        });
+
+        document.getElementById('complexity').addEventListener('input', function() {
+            if (selectedShape) {
+                selectedShape.complexity = parseInt(this.value);
+                redraw();
+            }
+        });
+
+        document.getElementById('distortion').addEventListener('input', function() {
+            if (selectedShape) {
+                selectedShape.distortion = parseFloat(this.value);
+                redraw();
+            }
+        });
+
+        document.getElementById('save-btn').addEventListener('click', function() {
+            saveCanvas(canvas, 'my_shape', 'png');
+        });
     </script>
 </body>
 </html>
