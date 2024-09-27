@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG Shape Generator</title>
+    <title>SVG図形生成器</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -13,13 +13,13 @@
             margin: 0;
             padding: 20px;
         }
-        .upload-container {
-            margin-bottom: 20px;
-        }
         #svgPreview {
             border: 1px solid #000;
             width: 200px;
             height: 200px;
+            margin-bottom: 20px;
+        }
+        .controls {
             margin-bottom: 20px;
         }
         .generated-shapes {
@@ -39,19 +39,41 @@
 </head>
 <body>
 
-    <div class="upload-container">
+    <div>
         <input type="file" id="svgInput" accept=".svg">
-        <button onclick="generateShapes()">Generate Similar Shapes</button>
+        <button onclick="generateShapes()">類似図形を生成</button>
     </div>
 
     <div id="svgPreview"></div>
+
+    <div class="controls">
+        <label>頂点の数: 
+            <input type="number" id="vertexCount" min="3" max="30" value="5">
+        </label>
+        <br>
+        <label>角の半径: 
+            <input type="number" id="cornerRadius" min="0" max="50" value="0">
+        </label>
+        <br>
+        <label>オブジェクト比率: 
+            <input type="range" id="aspectRatio" min="0" max="100" value="100">
+            <span id="aspectRatioValue">100%</span>
+        </label>
+        <br>
+        <label>角度: 
+            <input type="number" id="angle" min="0" max="180" value="0">
+        </label>
+        <br>
+        <label>縦横比: 
+            <input type="number" id="widthHeightRatio" min="-50" max="50" value="0">
+        </label>
+    </div>
 
     <div class="generated-shapes" id="shapesContainer"></div>
 
     <script>
         let svgData = '';
 
-        // Load the SVG file
         document.getElementById('svgInput').addEventListener('change', function (event) {
             const file = event.target.files[0];
             const reader = new FileReader();
@@ -66,13 +88,18 @@
             }
         });
 
-        // Generate similar shapes
         function generateShapes() {
             const container = document.getElementById('shapesContainer');
-            container.innerHTML = ''; // Clear previous shapes
+            container.innerHTML = '';
+
+            const vertexCount = parseInt(document.getElementById('vertexCount').value);
+            const cornerRadius = parseInt(document.getElementById('cornerRadius').value);
+            const aspectRatio = parseInt(document.getElementById('aspectRatio').value) / 100;
+            const angle = parseInt(document.getElementById('angle').value);
+            const widthHeightRatio = parseInt(document.getElementById('widthHeightRatio').value) / 100;
 
             for (let i = 0; i < 10; i++) {
-                const clonedSvg = createSimilarShape(svgData);
+                const clonedSvg = createSimilarShape(svgData, vertexCount, cornerRadius, aspectRatio, angle, widthHeightRatio);
                 const shapeDiv = document.createElement('div');
                 shapeDiv.className = 'shape';
                 shapeDiv.innerHTML = clonedSvg;
@@ -80,33 +107,43 @@
             }
         }
 
-        // Create a similar shape with random modifications
-        function createSimilarShape(originalSvg) {
+        function createSimilarShape(originalSvg, vertexCount, cornerRadius, aspectRatio, angle, widthHeightRatio) {
             const parser = new DOMParser();
             const svgDoc = parser.parseFromString(originalSvg, "image/svg+xml");
             const svgElement = svgDoc.documentElement;
 
-            // Randomize scale (75% to 125%)
-            const randomScale = Math.random() * 0.5 + 0.75;
-            svgElement.setAttribute('width', `${200 * randomScale}`);
-            svgElement.setAttribute('height', `${200 * randomScale}`);
+            // スケールと変形を適用
+            const width = 200 * aspectRatio;
+            const height = 200 * aspectRatio * (1 + widthHeightRatio);
+            svgElement.setAttribute('width', width);
+            svgElement.setAttribute('height', height);
 
-            // Randomize stroke width (1 to 5)
-            const randomStrokeWidth = Math.random() * 4 + 1;
-            svgElement.setAttribute('stroke-width', randomStrokeWidth);
+            // ランダムな色を設定
+            svgElement.setAttribute('stroke', getRandomColor());
+            svgElement.setAttribute('fill', getRandomColor());
+            svgElement.setAttribute('stroke-width', 2);
 
-            // Randomize stroke color
-            const randomStrokeColor = getRandomColor();
-            svgElement.setAttribute('stroke', randomStrokeColor);
-
-            // Randomize fill color
-            const randomFillColor = getRandomColor();
-            svgElement.setAttribute('fill', randomFillColor);
+            // 頂点の数、角の半径、角度を元に新しい形状を生成
+            const pathData = generatePathData(vertexCount, cornerRadius, angle);
+            svgElement.innerHTML = `<path d="${pathData}" fill="none" stroke="black" stroke-width="2"/>`;
 
             return svgElement.outerHTML;
         }
 
-        // Function to get a random color
+        function generatePathData(vertexCount, cornerRadius, angle) {
+            const points = [];
+            const step = (2 * Math.PI) / vertexCount;
+
+            for (let i = 0; i < vertexCount; i++) {
+                const x = Math.cos(step * i + angle * (Math.PI / 180)) * 80;
+                const y = Math.sin(step * i + angle * (Math.PI / 180)) * 80;
+                const rx = cornerRadius * (i % 2 === 0 ? 1 : -1); // ラウンドさせる
+                points.push(`${x + rx},${y + rx}`);
+            }
+
+            return `M${points.join(' L')} Z`;
+        }
+
         function getRandomColor() {
             const letters = '0123456789ABCDEF';
             let color = '#';
@@ -115,6 +152,10 @@
             }
             return color;
         }
+
+        document.getElementById('aspectRatio').addEventListener('input', function () {
+            document.getElementById('aspectRatioValue').innerText = `${this.value}%`;
+        });
     </script>
 
 </body>
