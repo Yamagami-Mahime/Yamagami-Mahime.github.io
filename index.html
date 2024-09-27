@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG図形変形ツール（400px×400px版）- 元の形状を保持</title>
+    <title>SVG図形変形ツール（400px×400px版）- 複雑な形状にも対応</title>
     <style>
         body { font-family: Arial, sans-serif; }
         #controls { margin-bottom: 20px; }
@@ -12,11 +12,11 @@
     </style>
 </head>
 <body>
-    <h1>SVG図形変形ツール（400px×400px版）- 元の形状を保持</h1>
+    <h1>SVG図形変形ツール（400px×400px版）- 複雑な形状にも対応</h1>
     <div id="controls">
         <input type="file" id="svgFile" accept=".svg">
-        <input type="range" id="vertexCount" min="3" max="20" value="4">
-        <label for="vertexCount">頂点数: <span id="vertexCountValue">4</span></label>
+        <input type="range" id="vertexCount" min="3" max="50" value="20">
+        <label for="vertexCount">頂点数: <span id="vertexCountValue">20</span></label>
         <input type="range" id="roundness" min="0" max="100" value="0">
         <label for="roundness">丸み: <span id="roundnessValue">0</span></label>
         <input type="range" id="rotation" min="0" max="360" value="0">
@@ -73,17 +73,35 @@
             transformedShape.transform(originalShape.transform());
         }
 
-        let vertices = [];
+        let pathPoints = [];
 
         function analyzeShape() {
             const pathData = originalShape.array();
-            vertices = [];
+            pathPoints = [];
+            let currentPoint = null;
             for (let i = 0; i < pathData.length; i++) {
                 const segment = pathData[i];
-                if (segment[0] === 'M' || segment[0] === 'L') {
-                    vertices.push({x: segment[1], y: segment[2]});
-                } else if (segment[0] === 'C') {
-                    vertices.push({x: segment[5], y: segment[6]});
+                switch (segment[0]) {
+                    case 'M':
+                    case 'L':
+                        currentPoint = {x: segment[1], y: segment[2]};
+                        pathPoints.push(currentPoint);
+                        break;
+                    case 'C':
+                        pathPoints.push(
+                            {x: segment[1], y: segment[2]},
+                            {x: segment[3], y: segment[4]},
+                            {x: segment[5], y: segment[6]}
+                        );
+                        currentPoint = {x: segment[5], y: segment[6]};
+                        break;
+                    case 'Q':
+                        pathPoints.push(
+                            {x: segment[1], y: segment[2]},
+                            {x: segment[3], y: segment[4]}
+                        );
+                        currentPoint = {x: segment[3], y: segment[4]};
+                        break;
                 }
             }
         }
@@ -93,62 +111,63 @@
 
             const vertexCount = parseInt(document.getElementById('vertexCount').value);
             const roundness = parseInt(document.getElementById('roundness').value) / 100;
-            const rotation = parseInt(document.getElementById('rotation').value);
+            const rotation = parseInt(document.getElementById('rotation').value) * Math.PI / 180;
 
             let newPath = '';
             const center = originalShape.bbox().center;
 
             for (let i = 0; i < vertexCount; i++) {
-                const angle = (i / vertexCount) * Math.PI * 2 + (rotation * Math.PI / 180);
-                const nextAngle = ((i + 1) / vertexCount) * Math.PI * 2 + (rotation * Math.PI / 180);
-                
-                const vertex = getInterpolatedVertex(angle);
-                const nextVertex = getInterpolatedVertex(nextAngle);
+                const t = i / vertexCount;
+                const point = getPointAtPercentage(t);
+                const rotatedPoint = rotatePoint(point, center, rotation);
 
                 if (i === 0) {
-                    newPath += `M${vertex.x},${vertex.y}`;
+                    newPath += `M${rotatedPoint.x},${rotatedPoint.y}`;
+                } else {
+                    const prevT = (i - 1) / vertexCount;
+                    const prevPoint = getPointAtPercentage(prevT);
+                    const rotatedPrevPoint = rotatePoint(prevPoint, center, rotation);
+
+                    const midX = (rotatedPrevPoint.x + rotatedPoint.x) / 2;
+                    const midY = (rotatedPrevPoint.y + rotatedPoint.y) / 2;
+                    const dx = rotatedPoint.x - rotatedPrevPoint.x;
+                    const dy = rotatedPoint.y - rotatedPrevPoint.y;
+                    const normX = -dy;
+                    const normY = dx;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const controlX = midX + (normX / dist) * dist * roundness / 2;
+                    const controlY = midY + (normY / dist) * dist * roundness / 2;
+
+                    newPath += `Q${controlX},${controlY} ${rotatedPoint.x},${rotatedPoint.y}`;
                 }
-
-                const midX = (vertex.x + nextVertex.x) / 2;
-                const midY = (vertex.y + nextVertex.y) / 2;
-                const dx = nextVertex.x - vertex.x;
-                const dy = nextVertex.y - vertex.y;
-                const normX = -dy;
-                const normY = dx;
-                const dist = Math.sqrt(normX * normX + normY * normY);
-                const controlX = midX + (normX / dist) * dist * roundness / 2;
-                const controlY = midY + (normY / dist) * dist * roundness / 2;
-
-                newPath += `Q${controlX},${controlY} ${nextVertex.x},${nextVertex.y}`;
             }
 
             newPath += 'Z';
             transformedShape.plot(newPath);
         }
 
-        function getInterpolatedVertex(angle) {
-            const center = originalShape.bbox().center;
-            let minDist = Infinity;
-            let closestVertex = null;
+        function getPointAtPercentage(t) {
+            const totalLength = pathPoints.length;
+            const index = Math.floor(t * (totalLength - 1));
+            const nextIndex = (index + 1) % totalLength;
+            const segmentT = (t * (totalLength - 1)) % 1;
 
-            for (let vertex of vertices) {
-                const dx = vertex.x - center.x;
-                const dy = vertex.y - center.y;
-                const vertexAngle = Math.atan2(dy, dx);
-                const angleDiff = Math.abs(normalizeAngle(vertexAngle - angle));
-                if (angleDiff < minDist) {
-                    minDist = angleDiff;
-                    closestVertex = vertex;
-                }
-            }
+            const point1 = pathPoints[index];
+            const point2 = pathPoints[nextIndex];
 
-            return closestVertex;
+            return {
+                x: point1.x + (point2.x - point1.x) * segmentT,
+                y: point1.y + (point2.y - point1.y) * segmentT
+            };
         }
 
-        function normalizeAngle(angle) {
-            while (angle > Math.PI) angle -= 2 * Math.PI;
-            while (angle < -Math.PI) angle += 2 * Math.PI;
-            return angle;
+        function rotatePoint(point, center, angle) {
+            const dx = point.x - center.x;
+            const dy = point.y - center.y;
+            return {
+                x: center.x + dx * Math.cos(angle) - dy * Math.sin(angle),
+                y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle)
+            };
         }
     </script>
 </body>
