@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG図形変形ツール（400px×400px版）- SVGトレース機能付き</title>
+    <title>SVG図形変形ツール（400px×400px版）</title>
     <style>
         body { font-family: Arial, sans-serif; }
         #controls { margin-bottom: 20px; }
@@ -12,7 +12,7 @@
     </style>
 </head>
 <body>
-    <h1>SVG図形変形ツール（400px×400px版）- SVGトレース機能付き</h1>
+    <h1>SVG図形変形ツール</h1>
     <div id="controls">
         <input type="file" id="svgFile" accept=".svg">
         <input type="range" id="vertexCount" min="3" max="50" value="20">
@@ -26,155 +26,41 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/3.1.1/svg.min.js"></script>
     <script>
-        const svgContainer = SVG('#svgContainer').size(400, 400);
+        let svgContainer;
         let originalShape;
         let transformedShape;
 
-        document.getElementById('svgFile').addEventListener('change', (e) => {
-            const file = e.target.files[0];
+        document.addEventListener('DOMContentLoaded', () => {
+            svgContainer = SVG('#svgContainer').size(400, 400);
+
+            document.getElementById('svgFile').addEventListener('change', handleSVGFile);
+            document.getElementById('vertexCount').addEventListener('input', updateShape);
+            document.getElementById('roundness').addEventListener('input', updateShape);
+            document.getElementById('rotation').addEventListener('input', updateShape);
+        });
+
+        function handleSVGFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
             const reader = new FileReader();
-            reader.onload = (event) => {
+            reader.onload = function (e) {
+                const svgText = e.target.result;
+                const parser = new DOMParser();
+                const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+
+                // 既存のSVGをクリアして、新しいSVG要素を追加
                 svgContainer.clear();
-                const tempContainer = document.createElement('div');
-                tempContainer.innerHTML = event.target.result;
-                const svgElement = tempContainer.querySelector('svg');
-                const viewBox = svgElement.getAttribute('viewBox');
-                if (viewBox) {
-                    svgContainer.attr('viewBox', viewBox);
-                }
-                traceSVG(svgElement);
+                const importedSVG = svgContainer.svg(svgDoc.documentElement.outerHTML);
+
+                // 初期形状を保存
+                originalShape = importedSVG;
+                transformedShape = originalShape.clone();
+
+                // 最初の変形を適用
+                updateShape();
             };
             reader.readAsText(file);
-        });
-
-        ['vertexCount', 'roundness', 'rotation'].forEach(id => {
-            const input = document.getElementById(id);
-            const value = document.getElementById(`${id}Value`);
-            input.addEventListener('input', () => {
-                value.textContent = input.value;
-                updateShape();
-            });
-        });
-
-        function traceSVG(svgElement) {
-            const paths = svgElement.querySelectorAll('path, circle, rect, ellipse, polygon, polyline');
-            let combinedPath = '';
-
-            paths.forEach(shape => {
-                let pathData;
-                if (shape.tagName.toLowerCase() === 'path') {
-                    pathData = shape.getAttribute('d');
-                } else {
-                    pathData = convertShapeToPath(shape);
-                }
-                combinedPath += pathData + ' ';
-            });
-
-            originalShape = svgContainer.path(combinedPath).fill('none').stroke({ color: '#000', width: 1 });
-            transformedShape = originalShape.clone();
-            centerAndScaleShape();
-            analyzeShape();
-            updateShape();
-        }
-
-        function convertShapeToPath(shape) {
-            const type = shape.tagName.toLowerCase();
-            let path = '';
-
-            switch (type) {
-                case 'circle':
-                    const cx = parseFloat(shape.getAttribute('cx'));
-                    const cy = parseFloat(shape.getAttribute('cy'));
-                    const r = parseFloat(shape.getAttribute('r'));
-                    path = `M${cx-r},${cy}A${r},${r} 0 1,0 ${cx+r},${cy}A${r},${r} 0 1,0 ${cx-r},${cy}`;
-                    break;
-                case 'rect':
-                    const x = parseFloat(shape.getAttribute('x'));
-                    const y = parseFloat(shape.getAttribute('y'));
-                    const width = parseFloat(shape.getAttribute('width'));
-                    const height = parseFloat(shape.getAttribute('height'));
-                    path = `M${x},${y}h${width}v${height}h-${width}Z`;
-                    break;
-                case 'ellipse':
-                    const ecx = parseFloat(shape.getAttribute('cx'));
-                    const ecy = parseFloat(shape.getAttribute('cy'));
-                    const rx = parseFloat(shape.getAttribute('rx'));
-                    const ry = parseFloat(shape.getAttribute('ry'));
-                    path = `M${ecx-rx},${ecy}A${rx},${ry} 0 1,0 ${ecx+rx},${ecy}A${rx},${ry} 0 1,0 ${ecx-rx},${ecy}`;
-                    break;
-                case 'polygon':
-                case 'polyline':
-                    const points = shape.getAttribute('points').trim().split(/\s+|,/);
-                    path = 'M' + points.join('L') + (type === 'polygon' ? 'Z' : '');
-                    break;
-            }
-
-            return path;
-        }
-
-        function centerAndScaleShape() {
-            const bbox = originalShape.bbox();
-            const scale = Math.min(380 / bbox.width, 380 / bbox.height);
-            originalShape.transform({
-                translateX: (400 - bbox.width * scale) / 2 - bbox.x * scale,
-                translateY: (400 - bbox.height * scale) / 2 - bbox.y * scale,
-                scale: scale
-            });
-            transformedShape.transform(originalShape.transform());
-        }
-
-        let pathPoints = [];
-
-        function analyzeShape() {
-            const pathData = originalShape.array();
-            pathPoints = [];
-            let currentPoint = null;
-            for (let i = 0; i < pathData.length; i++) {
-                const segment = pathData[i];
-                switch (segment[0]) {
-                    case 'M':
-                    case 'L':
-                        currentPoint = {x: segment[1], y: segment[2]};
-                        pathPoints.push(currentPoint);
-                        break;
-                    case 'C':
-                        pathPoints.push(
-                            {x: segment[1], y: segment[2]},
-                            {x: segment[3], y: segment[4]},
-                            {x: segment[5], y: segment[6]}
-                        );
-                        currentPoint = {x: segment[5], y: segment[6]};
-                        break;
-                    case 'Q':
-                        pathPoints.push(
-                            {x: segment[1], y: segment[2]},
-                            {x: segment[3], y: segment[4]}
-                        );
-                        currentPoint = {x: segment[3], y: segment[4]};
-                        break;
-                    case 'A':
-                        // Approximate arc with multiple points
-                        const arcPoints = approximateArc(currentPoint, segment.slice(1));
-                        pathPoints.push(...arcPoints);
-                        currentPoint = arcPoints[arcPoints.length - 1];
-                        break;
-                }
-            }
-        }
-
-        function approximateArc(start, arcParams) {
-            // This is a simplified approximation. For better results, use a more sophisticated algorithm.
-            const [rx, ry, xAxisRotation, largeArcFlag, sweepFlag, x, y] = arcParams;
-            const points = [];
-            const steps = 10;
-            for (let i = 0; i <= steps; i++) {
-                const t = i / steps;
-                const angle = t * Math.PI * 2;
-                const px = start.x + (x - start.x) * t;
-                const py = start.y + (y - start.y) * t;
-                points.push({x: px + Math.cos(angle) * rx, y: py + Math.sin(angle) * ry});
-            }
-            return points;
         }
 
         function updateShape() {
@@ -184,61 +70,15 @@
             const roundness = parseInt(document.getElementById('roundness').value) / 100;
             const rotation = parseInt(document.getElementById('rotation').value) * Math.PI / 180;
 
-            let newPath = '';
-            const center = originalShape.bbox().center;
+            document.getElementById('vertexCountValue').textContent = vertexCount;
+            document.getElementById('roundnessValue').textContent = roundness * 100;
+            document.getElementById('rotationValue').textContent = (rotation * (180 / Math.PI)).toFixed(0);
 
-            for (let i = 0; i < vertexCount; i++) {
-                const t = i / vertexCount;
-                const point = getPointAtPercentage(t);
-                const rotatedPoint = rotatePoint(point, center, rotation);
-
-                if (i === 0) {
-                    newPath += `M${rotatedPoint.x},${rotatedPoint.y}`;
-                } else {
-                    const prevT = (i - 1) / vertexCount;
-                    const prevPoint = getPointAtPercentage(prevT);
-                    const rotatedPrevPoint = rotatePoint(prevPoint, center, rotation);
-
-                    const midX = (rotatedPrevPoint.x + rotatedPoint.x) / 2;
-                    const midY = (rotatedPrevPoint.y + rotatedPoint.y) / 2;
-                    const dx = rotatedPoint.x - rotatedPrevPoint.x;
-                    const dy = rotatedPoint.y - rotatedPrevPoint.y;
-                    const normX = -dy;
-                    const normY = dx;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    const controlX = midX + (normX / dist) * dist * roundness / 2;
-                    const controlY = midY + (normY / dist) * dist * roundness / 2;
-
-                    newPath += `Q${controlX},${controlY} ${rotatedPoint.x},${rotatedPoint.y}`;
-                }
-            }
-
-            newPath += 'Z';
-            transformedShape.plot(newPath);
-        }
-
-        function getPointAtPercentage(t) {
-            const totalLength = pathPoints.length;
-            const index = Math.floor(t * (totalLength - 1));
-            const nextIndex = (index + 1) % totalLength;
-            const segmentT = (t * (totalLength - 1)) % 1;
-
-            const point1 = pathPoints[index];
-            const point2 = pathPoints[nextIndex];
-
-            return {
-                x: point1.x + (point2.x - point1.x) * segmentT,
-                y: point1.y + (point2.y - point1.y) * segmentT
-            };
-        }
-
-        function rotatePoint(point, center, angle) {
-            const dx = point.x - center.x;
-            const dy = point.y - center.y;
-            return {
-                x: center.x + dx * Math.cos(angle) - dy * Math.sin(angle),
-                y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle)
-            };
+            // スケーリングや回転などの変形を適用
+            transformedShape.transform({
+                rotate: rotation * (180 / Math.PI), // 回転を適用
+                scale: 1 + roundness // 丸みを調整
+            });
         }
     </script>
 </body>
