@@ -3,102 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>画像変形ツール</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.1/fabric.min.js"></script>
+    <title>SVG形状編集ツール</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/3.1.2/svg.min.js"></script>
     <style>
-        #canvas-container { width: 500px; height: 500px; border: 1px solid black; }
-        .slider-container { margin: 10px 0; }
+        #svg-container { width: 500px; height: 500px; border: 1px solid black; }
+        .control-panel { margin-top: 20px; }
+        .slider { width: 200px; }
     </style>
 </head>
 <body>
-    <input type="file" id="image-input" accept="image/*">
-    <div id="canvas-container">
-        <canvas id="canvas"></canvas>
+    <input type="file" id="file-input" accept=".svg">
+    <div id="svg-container"></div>
+    <div class="control-panel">
+        <div>
+            <label for="points">頂点数: </label>
+            <input type="range" id="points" class="slider" min="3" max="20" value="5">
+        </div>
+        <div>
+            <label for="radius">半径: </label>
+            <input type="range" id="radius" class="slider" min="10" max="200" value="100">
+        </div>
+        <div>
+            <label for="rotation">回転: </label>
+            <input type="range" id="rotation" class="slider" min="0" max="360" value="0">
+        </div>
+        <div>
+            <label for="distortion">歪み: </label>
+            <input type="range" id="distortion" class="slider" min="0" max="100" value="0">
+        </div>
     </div>
-    <div class="slider-container">
-        <label for="scale">拡大縮小: </label>
-        <input type="range" id="scale" min="50" max="150" value="100">
-    </div>
-    <div class="slider-container">
-        <label for="rotation">回転: </label>
-        <input type="range" id="rotation" min="0" max="360" value="0">
-    </div>
-    <div class="slider-container">
-        <label for="skew">傾斜: </label>
-        <input type="range" id="skew" min="-45" max="45" value="0">
-    </div>
-    <div class="slider-container">
-        <label for="distortion">歪み: </label>
-        <input type="range" id="distortion" min="0" max="100" value="0">
-    </div>
-    <button id="save-btn">保存</button>
+    <button id="save-btn">SVGを保存</button>
 
     <script>
-        let canvas = new fabric.Canvas('canvas', { width: 500, height: 500 });
-        let image;
+        let draw, shape;
+        const container = document.getElementById('svg-container');
 
-        document.getElementById('image-input').addEventListener('change', handleImageSelect);
-        document.getElementById('scale').addEventListener('input', updateImage);
-        document.getElementById('rotation').addEventListener('input', updateImage);
-        document.getElementById('skew').addEventListener('input', updateImage);
-        document.getElementById('distortion').addEventListener('input', updateImage);
-        document.getElementById('save-btn').addEventListener('click', saveImage);
+        document.getElementById('file-input').addEventListener('change', loadSVG);
+        document.getElementById('points').addEventListener('input', updateShape);
+        document.getElementById('radius').addEventListener('input', updateShape);
+        document.getElementById('rotation').addEventListener('input', updateShape);
+        document.getElementById('distortion').addEventListener('input', updateShape);
+        document.getElementById('save-btn').addEventListener('click', saveSVG);
 
-        function handleImageSelect(event) {
+        function loadSVG(event) {
             const file = event.target.files[0];
             const reader = new FileReader();
 
             reader.onload = function(e) {
-                fabric.Image.fromURL(e.target.result, function(img) {
-                    image = img;
-                    canvas.clear();
-                    canvas.add(image);
-                    image.center();
-                    canvas.renderAll();
-                });
+                container.innerHTML = e.target.result;
+                const svg = container.querySelector('svg');
+                draw = SVG(svg);
+                shape = draw.select('path').first();
+                updateShape();
             };
 
-            reader.readAsDataURL(file);
+            reader.readAsText(file);
         }
 
-        function updateImage() {
-            if (!image) return;
+        function updateShape() {
+            if (!shape) return;
 
-            const scale = document.getElementById('scale').value / 100;
+            const points = document.getElementById('points').value;
+            const radius = document.getElementById('radius').value;
             const rotation = document.getElementById('rotation').value;
-            const skew = document.getElementById('skew').value;
             const distortion = document.getElementById('distortion').value / 100;
 
-            image.set({
-                scaleX: scale,
-                scaleY: scale,
-                angle: rotation,
-                skewX: skew,
-                skewY: skew
-            });
+            let d = '';
+            for (let i = 0; i < points; i++) {
+                const angle = (i / points) * Math.PI * 2 + rotation * Math.PI / 180;
+                const x = 250 + Math.cos(angle) * radius * (1 + Math.sin(i) * distortion);
+                const y = 250 + Math.sin(angle) * radius * (1 + Math.cos(i) * distortion);
+                d += (i === 0 ? 'M' : 'L') + x + ',' + y;
+            }
+            d += 'Z';
 
-            // 歪み効果の適用
-            image.filters = [new fabric.Image.filters.Convolute({
-                matrix: [
-                    distortion, 0, 0,
-                    0, 1, 0,
-                    0, 0, 1 - distortion
-                ]
-            })];
-            image.applyFilters();
-
-            canvas.renderAll();
+            shape.plot(d);
         }
 
-        function saveImage() {
-            const dataURL = canvas.toDataURL({
-                format: 'png',
-                quality: 1
-            });
-
+        function saveSVG() {
+            const svgData = container.innerHTML;
+            const blob = new Blob([svgData], {type: 'image/svg+xml'});
+            const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.href = dataURL;
-            link.download = 'modified_image.png';
+            link.href = url;
+            link.download = 'modified_shape.svg';
             link.click();
         }
     </script>
