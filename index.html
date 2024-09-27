@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG図形変形ツール（400px×400px版）</title>
+    <title>Canvas図形変形ツール</title>
     <style>
         body { font-family: Arial, sans-serif; }
         #controls { margin-bottom: 20px; }
         input { margin-right: 10px; }
-        #svgContainer { border: 2px solid black; }
+        #canvasContainer { border: 2px solid black; display: inline-block; }
+        canvas { background-color: #f0f0f0; }
     </style>
 </head>
 <body>
-    <h1>SVG図形変形ツール</h1>
+    <h1>Canvas図形変形ツール</h1>
     <div id="controls">
-        <input type="file" id="svgFile" accept=".svg">
         <input type="range" id="vertexCount" min="3" max="50" value="20">
         <label for="vertexCount">頂点数: <span id="vertexCountValue">20</span></label>
         <input type="range" id="roundness" min="0" max="100" value="0">
@@ -22,50 +22,21 @@
         <input type="range" id="rotation" min="0" max="360" value="0">
         <label for="rotation">回転: <span id="rotationValue">0</span>°</label>
     </div>
-    <svg id="svgContainer" width="400" height="400"></svg>
+    <div id="canvasContainer">
+        <canvas id="canvas" width="400" height="400"></canvas>
+    </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/3.1.1/svg.min.js"></script>
     <script>
-        let svgContainer;
-        let originalShape;
-        let transformedShape;
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
 
-        document.addEventListener('DOMContentLoaded', () => {
-            svgContainer = SVG('#svgContainer').size(400, 400);
-
-            document.getElementById('svgFile').addEventListener('change', handleSVGFile);
-            document.getElementById('vertexCount').addEventListener('input', updateShape);
-            document.getElementById('roundness').addEventListener('input', updateShape);
-            document.getElementById('rotation').addEventListener('input', updateShape);
-        });
-
-        function handleSVGFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                const svgText = e.target.result;
-                const parser = new DOMParser();
-                const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
-
-                // 既存のSVGをクリアして、新しいSVG要素を追加
-                svgContainer.clear();
-                const importedSVG = svgContainer.svg(svgDoc.documentElement.outerHTML);
-
-                // 初期形状を保存
-                originalShape = importedSVG;
-                transformedShape = originalShape.clone();
-
-                // 最初の変形を適用
-                updateShape();
-            };
-            reader.readAsText(file);
-        }
+        document.getElementById('vertexCount').addEventListener('input', updateShape);
+        document.getElementById('roundness').addEventListener('input', updateShape);
+        document.getElementById('rotation').addEventListener('input', updateShape);
 
         function updateShape() {
-            if (!originalShape) return;
-
             const vertexCount = parseInt(document.getElementById('vertexCount').value);
             const roundness = parseInt(document.getElementById('roundness').value) / 100;
             const rotation = parseInt(document.getElementById('rotation').value) * Math.PI / 180;
@@ -74,12 +45,53 @@
             document.getElementById('roundnessValue').textContent = roundness * 100;
             document.getElementById('rotationValue').textContent = (rotation * (180 / Math.PI)).toFixed(0);
 
-            // スケーリングや回転などの変形を適用
-            transformedShape.transform({
-                rotate: rotation * (180 / Math.PI), // 回転を適用
-                scale: 1 + roundness // 丸みを調整
-            });
+            drawShape(vertexCount, roundness, rotation);
         }
+
+        function drawShape(vertexCount, roundness, rotation) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);  // 画面をクリア
+
+            const radius = 150;  // 図形の大きさ
+            const angleStep = (Math.PI * 2) / vertexCount;  // 各頂点の角度のステップ
+
+            ctx.save();
+            ctx.translate(centerX, centerY);  // 中心をキャンバスの中央に設定
+            ctx.rotate(rotation);  // 回転を適用
+
+            ctx.beginPath();
+            for (let i = 0; i < vertexCount; i++) {
+                const angle = i * angleStep;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+
+                const prevAngle = (i - 1 + vertexCount) % vertexCount * angleStep;
+                const prevX = Math.cos(prevAngle) * radius;
+                const prevY = Math.sin(prevAngle) * radius;
+
+                // 丸みを加えるための制御点
+                const midX = (x + prevX) / 2;
+                const midY = (y + prevY) / 2;
+                const dx = x - prevX;
+                const dy = y - prevY;
+                const normX = -dy;
+                const normY = dx;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const controlX = midX + (normX / dist) * dist * roundness;
+                const controlY = midY + (normY / dist) * dist * roundness;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.quadraticCurveTo(controlX, controlY, x, y);
+                }
+            }
+            ctx.closePath();
+            ctx.stroke();  // 図形の輪郭を描画
+            ctx.restore();
+        }
+
+        // 初期図形を描画
+        updateShape();
     </script>
 </body>
 </html>
